@@ -1,10 +1,10 @@
 package com.liferay.upgrade;
 
-import com.liferay.portal.kernel.util.CamelCaseUtil;
-import com.liferay.portal.kernel.util.StringPool;
+import com.liferay.portal.kernel.util.*;
 import javafx.util.Pair;
 
 import java.io.*;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -45,9 +45,11 @@ public class PropertiesChecker {
             _outputFile.println("We haven't found a new property for the following old properties:");
 
             for (String property : removedProperties) {
+                _outputFile.print("\t");
                 _outputFile.println(property);
             }
 
+            System.out.println("Done!");
         }
         finally {
             _outputFile.close();
@@ -78,18 +80,12 @@ public class PropertiesChecker {
 
         Enumeration enuKeys = oldProperties.keys();
 
-        _outputFile.println("- Properties not found in the new portal properties:");
-
         while (enuKeys.hasMoreElements()) {
             String key = enuKeys.nextElement().toString();
 
             if (newProperties.getProperty(key) == null) {
                 removedProperties.add(key);
             }
-        }
-
-        for (String property : removedProperties) {
-            _outputFile.println(property);
         }
 
         return removedProperties;
@@ -130,7 +126,7 @@ public class PropertiesChecker {
                 }
             });
 
-        _outputFile.println("- Some of those properties have been moved to portlet.properties: ");
+        _outputFile.println("Some properties have been moved to portlet.properties: ");
 
         Set<String> foundProperties = new HashSet<>();
 
@@ -140,6 +136,7 @@ public class PropertiesChecker {
             if (value != null) {
                 foundProperties.add(property);
 
+                _outputFile.print("\t");
                 _outputFile.println("Property " + property + " moved to " +  value);
             }
         }
@@ -150,7 +147,7 @@ public class PropertiesChecker {
     }
 
     protected static SortedSet<String> checkConfigurationProperties(SortedSet<String> properties, String sourceCodeURL) throws IOException {
-        Set<Pair> configurationProperties = new HashSet<Pair>();
+        Set<Pair<String, String>> configurationProperties = new HashSet<Pair<String, String>>();
 
         Files.walk(Paths.get(sourceCodeURL))
             .filter(p -> p.getFileName().toString().endsWith("Configuration.java"))
@@ -190,34 +187,110 @@ public class PropertiesChecker {
                 }
             });
 
-        Set<String> foundProperties = new HashSet<>();
-        SortedSet<String> informationToPrint = new TreeSet<>();
+        SortedMap<String, Map<String, String>> foundedProperties = new TreeMap<>();
 
-        for (Pair configurationProperty : configurationProperties) {
-            for (String property : properties) {
-                String configurationPropertyName = (String)configurationProperty.getKey();
+        for (String property : properties) {
+            Map<String, String> matches = new HashMap<>();
 
-                String configurationPropertyNameAsPortalProperty= CamelCaseUtil.fromCamelCase(configurationPropertyName, StringPool.PERIOD.charAt(0));
+            for (Pair<String, String> configurationProperty : configurationProperties) {
+                String configurationPropertyName = (String) configurationProperty.getKey();
 
-                if (property.contains(configurationPropertyNameAsPortalProperty)) {
-                    foundProperties.add(property);
+                String configurationPropertyNameAsPortalProperty = CamelCaseUtil.fromCamelCase(configurationPropertyName, StringPool.PERIOD.charAt(0));
 
-                    informationToPrint.add("Property " + property + " could be move to OSGI property " + configurationPropertyName + " in " + configurationProperty.getValue());
+                boolean exit = false;
+
+                while (!exit) {
+                    if (property.contains(configurationPropertyNameAsPortalProperty)) {
+                        matches.put(configurationPropertyName, configurationProperty.getValue());
+
+                        break;
+                    }
+                    else {
+                        int index = configurationPropertyNameAsPortalProperty.lastIndexOf(StringPool.PERIOD);
+
+                        if (index == -1) {
+                            exit = true;
+                        }
+                        else {
+                            configurationPropertyNameAsPortalProperty = configurationPropertyNameAsPortalProperty.substring(0, index);
+                        }
+                    }
                 }
             }
 
+            if (matches.size() != 0) {
+                foundedProperties.put(property, matches);
+            }
         }
 
-        _outputFile.println();
-        _outputFile.println("Properties moved to OSGI configuration:");
+        if (foundedProperties.size() != 0) {
+            _outputFile.println();
+            _outputFile.println("Properties moved to OSGI configuration:");
 
-        for (String information : informationToPrint) {
-            _outputFile.println(information);
+            for (Map.Entry<String, Map<String, String>> entry : foundedProperties.entrySet()) {
+                String foundedProperty = entry.getKey();
+
+                _outputFile.print("\t");
+                _outputFile.println(foundedProperty + " can match with the following OSGI properties :");
+
+                Map<String, String> matches = entry.getValue();
+
+                String[] mostLikelyMatches = getMostLikelyMatches(foundedProperty, matches.keySet());
+
+                for (String mostLikelyMatch : mostLikelyMatches) {
+                    String path = matches.get(mostLikelyMatch);
+
+                    int index = path.lastIndexOf("com/liferay/");
+
+                    String configFilePath = path.substring(index);
+
+                    String configFileName = configFilePath.replace(".java", StringPool.BLANK);
+
+                    configFileName = StringUtil.replace(configFileName, StringPool.FORWARD_SLASH.charAt(0), StringPool.PERIOD.charAt(0));
+
+                    _outputFile.print("\t\t");
+                    _outputFile.println(mostLikelyMatch +  " from " +  configFileName);
+                }
+
+                properties.remove(foundedProperty);
+            }
         }
-
-        properties.removeAll(foundProperties);
 
         return properties;
+    }
+
+    protected static String[] getMostLikelyMatches(String property, Set<String> matches) {
+        List<String> propertyWords = Arrays.asList(StringUtil.split(property, StringPool.PERIOD));
+
+        List<String> mostLikelyMatches = new ArrayList<>();
+
+        int maxOccurrences = 0;
+
+        for (String match : matches) {
+            String matchAsPortalProperty = CamelCaseUtil.fromCamelCase(match, StringPool.PERIOD.charAt(0));
+
+            String[] matchWords = StringUtil.split(matchAsPortalProperty, StringPool.PERIOD);
+
+            int occurrences = 0;
+
+            for (String word : matchWords) {
+                if (propertyWords.contains(word)) {
+                    occurrences++;
+                }
+            }
+
+            if (occurrences > maxOccurrences) {
+                mostLikelyMatches.clear();
+                mostLikelyMatches.add(match);
+
+                maxOccurrences = occurrences;
+            }
+            else if (occurrences == maxOccurrences) {
+                mostLikelyMatches.add(match);
+            }
+        }
+
+        return mostLikelyMatches.toArray(new String[mostLikelyMatches.size()]);
     }
 
     private static PrintWriter _outputFile;
