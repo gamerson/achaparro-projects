@@ -1,7 +1,6 @@
 package com.liferay.upgrade;
 
 import com.liferay.portal.kernel.util.*;
-import javafx.util.Pair;
 
 import java.io.*;
 import java.io.File;
@@ -13,7 +12,7 @@ import java.util.*;
 /**
  * Created by achaparro on 28/12/16.
  */
-public class PropertiesChecker {
+public class PropertiesLocator {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 2) {
