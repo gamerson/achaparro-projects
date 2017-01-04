@@ -51,16 +51,13 @@ public class PropertiesLocator {
             _outputFile.println();
             removedProperties = checkConfigurationProperties(removedProperties, sourceCodeURL);
 
-            // Maybe it's better to say that the rest of the properties still remain in the new portal.properties
-            /*
-            _outputFile.println();
-            _outputFile.println("The following properties still exist in the new portal.properties:");
-            printProperties(remainedProperties);
-            */
-
             _outputFile.println();
             _outputFile.println("We haven't found a new property for the following old properties (check if you still need them or check the documentation to find a replacement):");
             printProperties(removedProperties);
+
+            _outputFile.println();
+            _outputFile.println("The following properties still exist in the new portal.properties:");
+            printProperties(remainedProperties);
 
             System.out.println("Done!");
         }
@@ -277,6 +274,20 @@ public class PropertiesLocator {
             }
         }
 
+        if (mostLikelyMatches.size() > 1) {
+            SortedMap<String, String> theMostLikelyMatches = new TreeMap();
+
+            for (Map.Entry<String, String> match : mostLikelyMatches.entrySet()) {
+                if (matchSuffix(property, match.getKey())) {
+                    theMostLikelyMatches.put(match.getKey(), match.getValue());
+                }
+            }
+
+            if (theMostLikelyMatches.size() > 0) {
+                mostLikelyMatches = theMostLikelyMatches;
+            }
+        }
+
         return mostLikelyMatches;
     }
 
@@ -324,6 +335,24 @@ public class PropertiesLocator {
         }
 
         return true;
+    }
+
+    protected static boolean matchSuffix(String originalProperty, String property) {
+        if (!property.contains(StringPool.PERIOD)) {
+            //Camel case property
+            property = CamelCaseUtil.fromCamelCase(property, StringPool.PERIOD.charAt(0));
+        }
+
+        String[] propertyWords = StringUtil.split(property, StringPool.PERIOD);
+
+        String propertySuffix = propertyWords[propertyWords.length-2] + StringPool.PERIOD + propertyWords[propertyWords.length-1];
+
+        if (originalProperty.endsWith(propertySuffix)) {
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
     protected static SortedSet<String> manageExceptions(SortedSet<String> properties) {
@@ -386,4 +415,5 @@ public class PropertiesLocator {
     private static final String[] _COMMON_PREFIXES = new String[] {
         "asset", "dynamic.data.lists", "dynamic.data.mapping", "journal", "audit", "auth", "blogs", "bookmarks", "cas", "journal", "wiki"
     };
+    
 }
