@@ -288,10 +288,13 @@ public class PropertiesLocator {
 
         String[] propertyWords = StringUtil.split(property, StringPool.PERIOD);
 
+        String[] originalPropertyWords = StringUtil.split(originalProperty, StringPool.PERIOD);
+        List<String> originalPropertyWordsList = ListUtil.fromArray(originalPropertyWords);
+
         int numOccurrences = 0;
 
         for (String word : propertyWords) {
-            if (originalProperty.contains(word)) {numOccurrences++;}
+            if (originalPropertyWordsList.contains(word)) {numOccurrences++;}
         }
 
         return numOccurrences;
