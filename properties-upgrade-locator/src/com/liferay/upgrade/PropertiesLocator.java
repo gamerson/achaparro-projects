@@ -16,7 +16,7 @@ public class PropertiesLocator {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 2) {
-            System.out.println("Please, specify at least the following arguments: ");
+            System.out.println("Please, specify the following arguments: ");
             System.out.println("URL to old portal-ext.properties");
             System.out.println("URL to the code where the program should check");
 
@@ -28,25 +28,37 @@ public class PropertiesLocator {
 
         _outputFile = generateOutputFile();
 
+        String title = "Checking the location for old properties in the new version";
+
+        _outputFile.println(title);
+        printUnderline(title);
+
         try {
             Properties oldProperties = getProperties(oldPropertiesFileURL);
 
             String newPropertiesFileURL = sourceCodeURL + PORTAL_PROPERTIES_RELATIVE_PATH;
             Properties newProperties = getProperties(newPropertiesFileURL);
 
-            SortedSet<String> removedProperties = checkProperties(oldProperties, newProperties);
+            SortedSet<String> remainedProperties = new TreeSet<String>();
 
-            removedProperties = checkPortletProperties(removedProperties, sourceCodeURL);
+            SortedSet<String> removedProperties = getRemovedProperties(oldProperties, newProperties, remainedProperties);
 
-            removedProperties = checkConfigurationProperties(removedProperties, sourceCodeURL);
+            removedProperties = manageExceptions(removedProperties);
 
             _outputFile.println();
-            _outputFile.println("We haven't found a new property for the following old properties:");
+            removedProperties = checkPortletProperties(removedProperties, sourceCodeURL);
 
-            for (String property : removedProperties) {
-                _outputFile.print("\t");
-                _outputFile.println(property);
-            }
+            _outputFile.println();
+            removedProperties = checkConfigurationProperties(removedProperties, sourceCodeURL);
+
+            // Maybe it's better to say that the rest of the properties still remain in the new portal.properties
+            _outputFile.println();
+            _outputFile.println("The following properties still exist in the new portal.properties:");
+            printProperties(remainedProperties);
+
+            _outputFile.println();
+            _outputFile.println("We haven't found a new property for the following old properties (check if you still need them or check the documentation to find a replacement):");
+            printProperties(removedProperties);
 
             System.out.println("Done!");
         }
@@ -74,7 +86,7 @@ public class PropertiesLocator {
         }
     }
 
-    protected static SortedSet<String> checkProperties(Properties oldProperties, Properties newProperties) {
+    protected static SortedSet<String> getRemovedProperties(Properties oldProperties, Properties newProperties, SortedSet<String> remainedProperties) {
         SortedSet<String> removedProperties = new TreeSet<String>();
 
         Enumeration enuKeys = oldProperties.keys();
@@ -84,6 +96,9 @@ public class PropertiesLocator {
 
             if (newProperties.getProperty(key) == null) {
                 removedProperties.add(key);
+            }
+            else {
+                remainedProperties.add(key);
             }
         }
 
@@ -128,10 +143,7 @@ public class PropertiesLocator {
         SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
 
         for (String property : properties) {
-            int index = property.indexOf(StringPool.PERIOD);
-            String portletName = property.substring(0, index);
-
-            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, portletsProperties, portletName);
+            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, portletsProperties, getPortletName(property));
 
             if (mostLikelyMatches.size() > 0) {
                 foundedProperties.put(property, mostLikelyMatches);
@@ -203,7 +215,7 @@ public class PropertiesLocator {
         SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
 
         for (String property : properties) {
-            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, configurationProperties, null);
+            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, configurationProperties, getPortletName(property));
 
             if (mostLikelyMatches.size() != 0) {
                 foundedProperties.put(property, mostLikelyMatches);
@@ -211,7 +223,6 @@ public class PropertiesLocator {
         }
 
         if (foundedProperties.size() != 0) {
-            _outputFile.println();
             _outputFile.println("Properties moved to OSGI configuration:");
 
             for (SortedMap.Entry<String, SortedMap<String, String>> entry : foundedProperties.entrySet()) {
@@ -284,6 +295,12 @@ public class PropertiesLocator {
         return numOccurrences;
     }
 
+    protected static String getPortletName(String property) {
+        int index = property.indexOf(StringPool.PERIOD);
+
+        return property.substring(0, index);
+    }
+
     protected static boolean match(String originalProperty, Map.Entry<String, String> property, int minOccurrences, String portletName) {
         String propertyPath = property.getValue();
 
@@ -302,7 +319,48 @@ public class PropertiesLocator {
         return true;
     }
 
+    protected static SortedSet<String> manageExceptions(SortedSet<String> properties) {
+        Set<String> removedProperties = new HashSet<String>();
+        SortedSet<String> informationToPrint = new TreeSet<String>();
+
+        for (String property : properties) {
+            if (property.endsWith("display.templates.config")) {
+                removedProperties.add(property);
+
+                informationToPrint.add(property + " does not exist anymore. OverWrite the method in the ADT handler. See LPS-67466");
+            }
+        }
+
+        if (removedProperties.size() > 0) {
+            _outputFile.println("Following portal properties present an exception:");
+
+            for (String information : informationToPrint) {
+                _outputFile.print("\t");
+                _outputFile.println(information);
+            }
+
+            properties.removeAll(removedProperties);
+        }
+
+        return properties;
+    }
+
+    protected static void printProperties(Set<String> properties) {
+        for (String property : properties) {
+            _outputFile.print("\t");
+            _outputFile.println(property);
+        }
+    }
+
+    protected static void printUnderline(String text) {
+        for (int i=0;i<text.length();i++){
+            _outputFile.print(StringPool.DASH);
+        }
+
+        _outputFile.println(StringPool.BLANK);
+    }
+
     private static PrintWriter _outputFile;
 
-    private static final String PORTAL_PROPERTIES_RELATIVE_PATH = "/portal-impl/classes/portal.properties";
+    private static final String PORTAL_PROPERTIES_RELATIVE_PATH = "/portal-impl/src/portal.properties";
 }
