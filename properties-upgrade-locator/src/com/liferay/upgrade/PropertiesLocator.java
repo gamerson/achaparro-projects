@@ -52,9 +52,11 @@ public class PropertiesLocator {
             removedProperties = checkConfigurationProperties(removedProperties, sourceCodeURL);
 
             // Maybe it's better to say that the rest of the properties still remain in the new portal.properties
+            /*
             _outputFile.println();
             _outputFile.println("The following properties still exist in the new portal.properties:");
             printProperties(remainedProperties);
+            */
 
             _outputFile.println();
             _outputFile.println("We haven't found a new property for the following old properties (check if you still need them or check the documentation to find a replacement):");
@@ -308,9 +310,11 @@ public class PropertiesLocator {
             if (!propertyPath.contains(portletName)) {return false;}
         }
 
+        String originalPropertyWitouthPrefix = removeCommonPrefix(originalProperty);
+
         String propertyName = property.getKey();
 
-        int numOccurrences = getOccurrences(originalProperty, propertyName);
+        int numOccurrences = getOccurrences(originalPropertyWitouthPrefix, propertyName);
 
         if ((numOccurrences == 0) || (numOccurrences < minOccurrences)) {
             return false;
@@ -345,6 +349,18 @@ public class PropertiesLocator {
         return properties;
     }
 
+    protected static String removeCommonPrefix(String property) {
+        for (String prefix : _COMMON_PREFIXES) {
+            if (property.startsWith(prefix)) {
+                property = property.replace(prefix, StringPool.BLANK);
+
+                break;
+            }
+        }
+
+        return property;
+    }
+
     protected static void printProperties(Set<String> properties) {
         for (String property : properties) {
             _outputFile.print("\t");
@@ -363,4 +379,8 @@ public class PropertiesLocator {
     private static PrintWriter _outputFile;
 
     private static final String PORTAL_PROPERTIES_RELATIVE_PATH = "/portal-impl/src/portal.properties";
+
+    private static final String[] _COMMON_PREFIXES = new String[] {
+        "asset", "dynamic.data.lists", "dynamic.data.mapping", "journal", "audit", "auth", "blogs", "bookmarks", "cas", "journal", "wiki"
+    };
 }
