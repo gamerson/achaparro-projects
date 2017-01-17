@@ -1,6 +1,7 @@
 package com.liferay.upgrade;
 
 import com.liferay.portal.kernel.util.*;
+import javafx.util.Pair;
 
 import java.io.*;
 import java.io.File;
@@ -36,7 +37,7 @@ public class PropertiesLocator {
         try {
             Properties oldProperties = getProperties(oldPropertiesFileURL);
 
-            String newPropertiesFileURL = sourceCodeURL + PORTAL_PROPERTIES_RELATIVE_PATH;
+            String newPropertiesFileURL = sourceCodeURL + _PORTAL_PROPERTIES_RELATIVE_PATH;
             Properties newProperties = getProperties(newPropertiesFileURL);
 
             SortedSet<String> remainedProperties = new TreeSet<String>();
@@ -116,7 +117,7 @@ public class PropertiesLocator {
     }
 
     protected static SortedSet<String> checkPortletProperties(SortedSet<String> properties, String sourceCodeURL) throws Exception {
-        Map<String, String> portletsProperties = new HashMap<>();
+        List<Pair<String, String>> portletsProperties = new ArrayList<>();
 
         Files.walk(Paths.get(sourceCodeURL))
             .filter(p -> p.toFile().getAbsolutePath().endsWith("/src/main/resources/portlet.properties"))
@@ -129,7 +130,7 @@ public class PropertiesLocator {
                     Enumeration enuKeys = portletProperties.keys();
 
                     while (enuKeys.hasMoreElements()) {
-                        portletsProperties.put((String) enuKeys.nextElement(), absolutePath);
+                        portletsProperties.add(new Pair<String, String>((String) enuKeys.nextElement(), absolutePath));
                     }
                 }
                 catch (Exception e) {
@@ -173,7 +174,7 @@ public class PropertiesLocator {
     }
 
     protected static SortedSet<String> checkConfigurationProperties(SortedSet<String> properties, String sourceCodeURL) throws IOException {
-        Map<String, String> configurationProperties = new HashMap<>();
+        List<Pair<String, String>> configurationProperties = new ArrayList<>();
 
         Files.walk(Paths.get(sourceCodeURL))
             .filter(p -> p.getFileName().toString().endsWith("Configuration.java"))
@@ -194,7 +195,7 @@ public class PropertiesLocator {
                                     if ((endIndex != -1) && (lastSpaceIndex != -1)) {
                                         String configurationProperty = line.substring(lastSpaceIndex, endIndex).trim();
 
-                                        configurationProperties.put(configurationProperty, absolutePath);
+                                        configurationProperties.add(new Pair<String, String>(configurationProperty, absolutePath));
                                     }
 
                                     break;
@@ -254,13 +255,13 @@ public class PropertiesLocator {
         return properties;
     }
 
-    protected static SortedMap<String, String> getMostLikelyMatches(String property, Map<String, String> matches, String portletName) {
+    protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String>> matches, String portletName) {
         SortedMap<String, String> mostLikelyMatches = new TreeMap();
 
         //Default min occurrences to match
         int maxOccurrences = 2;
 
-        for (Map.Entry<String, String> match : matches.entrySet()) {
+        for (Pair<String, String> match : matches) {
             if (match(property, match, maxOccurrences, portletName)) {
                 int occurrences = getOccurrences(property, match.getKey());
 
@@ -291,6 +292,16 @@ public class PropertiesLocator {
         return mostLikelyMatches;
     }
 
+    protected static String getEquivalence(String portletName) {
+        String equivalence = _portletNameEquivalences.get(portletName);
+
+        if (equivalence != null) {
+            return equivalence;
+        }
+
+        return portletName;
+    }
+
     protected static int getOccurrences(String originalProperty, String property) {
         if (!property.contains(StringPool.PERIOD)) {
             //Camel case property
@@ -317,18 +328,20 @@ public class PropertiesLocator {
         return property.substring(0, index);
     }
 
-    protected static boolean match(String originalProperty, Map.Entry<String, String> property, int minOccurrences, String portletName) {
+    protected static boolean match(String originalProperty, Pair<String, String> property, int minOccurrences, String portletName) {
         String propertyPath = property.getValue();
+
+        portletName = getEquivalence(portletName);
 
         if (portletName != null) {
             if (!propertyPath.contains(portletName)) {return false;}
         }
 
-        String originalPropertyWitouthPrefix = removeCommonPrefix(originalProperty);
+        String originalPropertyWithoutPrefix = removeCommonPrefix(originalProperty);
 
         String propertyName = property.getKey();
 
-        int numOccurrences = getOccurrences(originalPropertyWitouthPrefix, propertyName);
+        int numOccurrences = getOccurrences(originalPropertyWithoutPrefix, propertyName);
 
         if ((numOccurrences == 0) || (numOccurrences < minOccurrences)) {
             return false;
@@ -360,7 +373,7 @@ public class PropertiesLocator {
         SortedSet<String> informationToPrint = new TreeSet<String>();
 
         for (String property : properties) {
-            if (property.endsWith("display.templates.config")) {
+            if (property.endsWith("display.templates.config") && !property.equals("blogs.display.templates.config") && !property.equals("dl.display.templates.config")) {
                 removedProperties.add(property);
 
                 informationToPrint.add(property + " does not exist anymore. OverWrite the method in the ADT handler. See LPS-67466");
@@ -410,10 +423,17 @@ public class PropertiesLocator {
 
     private static PrintWriter _outputFile;
 
-    private static final String PORTAL_PROPERTIES_RELATIVE_PATH = "/portal-impl/src/portal.properties";
+    private static final String _PORTAL_PROPERTIES_RELATIVE_PATH = "/portal-impl/src/portal.properties";
 
     private static final String[] _COMMON_PREFIXES = new String[] {
         "asset", "dynamic.data.lists", "dynamic.data.mapping", "journal", "audit", "auth", "blogs", "bookmarks", "cas", "journal", "wiki"
     };
-    
+
+    private static final Map<String, String> _portletNameEquivalences;
+    static
+    {
+        _portletNameEquivalences = new HashMap<String, String>();
+        _portletNameEquivalences.put("dl", "document-library");
+    }
+
 }
