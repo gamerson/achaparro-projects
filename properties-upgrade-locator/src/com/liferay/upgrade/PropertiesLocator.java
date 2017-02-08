@@ -1,7 +1,6 @@
 package com.liferay.upgrade;
 
 import com.liferay.portal.kernel.util.*;
-import javafx.util.Pair;
 
 import java.io.*;
 import java.io.File;
@@ -263,7 +262,7 @@ public class PropertiesLocator {
 
         for (Pair<String, String> match : matches) {
             if (match(property, match, maxOccurrences, portletName)) {
-                int occurrences = getOccurrences(property, match.getKey());
+                int occurrences = getOccurrences(property, match.first);
 
                 if (occurrences > maxOccurrences) {
                     mostLikelyMatches.clear();
@@ -271,7 +270,7 @@ public class PropertiesLocator {
                     maxOccurrences = occurrences;
                 }
 
-                mostLikelyMatches.put(match.getKey(), match.getValue());
+                mostLikelyMatches.put(match.first, match.second);
             }
         }
 
@@ -329,7 +328,7 @@ public class PropertiesLocator {
     }
 
     protected static boolean match(String originalProperty, Pair<String, String> property, int minOccurrences, String portletName) {
-        String propertyPath = property.getValue();
+        String propertyPath = property.second;
 
         portletName = getEquivalence(portletName);
 
@@ -339,7 +338,7 @@ public class PropertiesLocator {
 
         String originalPropertyWithoutPrefix = removeCommonPrefix(originalProperty);
 
-        String propertyName = property.getKey();
+        String propertyName = property.first;
 
         int numOccurrences = getOccurrences(originalPropertyWithoutPrefix, propertyName);
 
@@ -436,4 +435,56 @@ public class PropertiesLocator {
         _portletNameEquivalences.put("dl", "document-library");
     }
 
+    static class Pair<F, S> {
+        final F first;
+        final S second;
+
+        public Pair(final F l, final S r) {
+            first = l;
+            second = r;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + first + ", " + second + ")";
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((first == null) ? 0 : first.hashCode());
+            result = prime * result + ((second == null) ? 0 : second.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final Pair<?, ?> other = (Pair<?, ?>) obj;
+            if (first == null) {
+                if (other.first != null) {
+                    return false;
+                }
+            } else if (!first.equals(other.first)) {
+                return false;
+            }
+            if (second == null) {
+                if (other.second != null) {
+                    return false;
+                }
+            } else if (!second.equals(other.second)) {
+                return false;
+            }
+            return true;
+        }
+    }
 }
