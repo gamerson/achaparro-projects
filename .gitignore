@@ -1,3 +1,7 @@
 out/
 .idea/
 *.out
+.classpath
+.project
+.settings/
+.gradle
