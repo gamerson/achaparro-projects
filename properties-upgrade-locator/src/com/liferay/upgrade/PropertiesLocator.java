@@ -18,13 +18,13 @@ public class PropertiesLocator {
         if (args.length != 2) {
             System.out.println("Please, specify the following arguments: ");
             System.out.println("URL to old portal-ext.properties");
-            System.out.println("URL to the code where the program should check");
+            System.out.println("URL to a Liferay bundle");
 
             return;
         }
 
         String oldPropertiesFileURL = args[0];
-        String sourceCodeURL = args[1];
+        String bundleURL = args[1];
 
         _outputFile = generateOutputFile();
 
@@ -36,7 +36,7 @@ public class PropertiesLocator {
         try {
             Properties oldProperties = getProperties(oldPropertiesFileURL);
 
-            String newPropertiesFileURL = sourceCodeURL + _PORTAL_PROPERTIES_RELATIVE_PATH;
+            String newPropertiesFileURL = bundleURL + _PORTAL_PROPERTIES_RELATIVE_PATH;
             Properties newProperties = getProperties(newPropertiesFileURL);
 
             SortedSet<String> remainedProperties = new TreeSet<String>();
@@ -46,10 +46,10 @@ public class PropertiesLocator {
             removedProperties = manageExceptions(removedProperties);
 
             _outputFile.println();
-            removedProperties = checkPortletProperties(removedProperties, sourceCodeURL);
+            removedProperties = checkPortletProperties(removedProperties, bundleURL);
 
             _outputFile.println();
-            removedProperties = checkConfigurationProperties(removedProperties, sourceCodeURL);
+            removedProperties = checkConfigurationProperties(removedProperties, bundleURL);
 
             _outputFile.println();
             _outputFile.println("We haven't found a new property for the following old properties (check if you still need them or check the documentation to find a replacement):");
