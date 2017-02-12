@@ -4,10 +4,13 @@ import com.liferay.portal.kernel.util.*;
 
 import java.io.*;
 import java.io.File;
+import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Stream;
 
 /**
  * Created by achaparro on 28/12/16.
@@ -36,8 +39,7 @@ public class PropertiesLocator {
         try {
             Properties oldProperties = getProperties(oldPropertiesFileURL);
 
-            String newPropertiesFileURL = bundleURL + _PORTAL_PROPERTIES_RELATIVE_PATH;
-            Properties newProperties = getProperties(newPropertiesFileURL);
+            Properties newProperties = getCurrentPortalProperties(bundleURL);
 
             SortedSet<String> remainedProperties = new TreeSet<String>();
 
@@ -64,6 +66,36 @@ public class PropertiesLocator {
         finally {
             _outputFile.close();
         }
+    }
+
+    protected static Properties getCurrentPortalProperties(String bundleURL) throws Exception {
+        Properties properties = new Properties();
+
+        try (Stream<Path> paths = Files.find(
+                Paths.get(bundleURL), Integer.MAX_VALUE,
+                (path,attrs) -> attrs.isRegularFile()
+                        && path.toString().endsWith(_PORTAL_IMPL_RELATIVE_PATH))) {
+            paths.limit(1).forEach(path -> {
+                try {
+                    URL url = new URL("jar:file:" + path.toString() + "!/portal.properties");
+                    InputStream is = url.openStream();
+
+                    properties.load(is);
+                    is.close();
+
+                } catch (Exception e) {
+                    System.out.println("Unable to get current portal properties");
+
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        if (properties.size() == 0) {
+            throw new Exception("File portal.properties doesn't exist in " + bundleURL);
+        }
+
+        return properties;
     }
 
     protected static Properties getProperties(String propertiesURL) throws Exception {
@@ -422,7 +454,7 @@ public class PropertiesLocator {
 
     private static PrintWriter _outputFile;
 
-    private static final String _PORTAL_PROPERTIES_RELATIVE_PATH = "/portal-impl/src/portal.properties";
+    private static final String _PORTAL_IMPL_RELATIVE_PATH = "/WEB-INF/lib/portal-impl.jar";
 
     private static final String[] _COMMON_PREFIXES = new String[] {
         "asset", "dynamic.data.lists", "dynamic.data.mapping", "journal", "audit", "auth", "blogs", "bookmarks", "cas", "journal", "wiki"
