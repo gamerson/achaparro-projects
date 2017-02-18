@@ -10,7 +10,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * Created by achaparro on 28/12/16.
@@ -48,7 +53,7 @@ public class PropertiesLocator {
             removedProperties = manageExceptions(removedProperties);
 
             _outputFile.println();
-            removedProperties = checkPortletProperties(removedProperties, bundleURL);
+            removedProperties = checkPortletProperties(removedProperties, bundleURL + "/osgi");
 
             _outputFile.println();
             removedProperties = checkConfigurationProperties(removedProperties, bundleURL);
@@ -77,15 +82,8 @@ public class PropertiesLocator {
                         && path.toString().endsWith(_PORTAL_IMPL_RELATIVE_PATH))) {
             paths.limit(1).forEach(path -> {
                 try {
-                    URL url = new URL("jar:file:" + path.toString() + "!/portal.properties");
-                    InputStream is = url.openStream();
-
-                    properties.load(is);
-                    is.close();
-
+                    getPropertiesFromJar("jar:file:" + path.toString() + "!/portal.properties", properties);
                 } catch (Exception e) {
-                    System.out.println("Unable to get current portal properties");
-
                     e.printStackTrace();
                 }
             });
@@ -112,6 +110,21 @@ public class PropertiesLocator {
         }
         catch (Exception e) {
             System.out.println("Unable to read properties file " + propertiesFile.getAbsolutePath());
+
+            throw e;
+        }
+    }
+
+    protected static void getPropertiesFromJar(String propertiesJarURL, Properties properties) throws Exception {
+        try {
+            URL url = new URL(propertiesJarURL);
+            InputStream is = url.openStream();
+
+            properties.load(is);
+            is.close();
+        }
+        catch (Exception e) {
+            System.out.println("Unable to read properties file " + propertiesJarURL);
 
             throw e;
         }
@@ -147,25 +160,72 @@ public class PropertiesLocator {
         }
     }
 
-    protected static SortedSet<String> checkPortletProperties(SortedSet<String> properties, String sourceCodeURL) throws Exception {
+    protected static SortedSet<String> checkPortletProperties(SortedSet<String> properties, String rootPath) throws Exception {
         List<Pair<String, String>> portletsProperties = new ArrayList<>();
 
-        Files.walk(Paths.get(sourceCodeURL))
-            .filter(p -> p.toFile().getAbsolutePath().endsWith("/src/main/resources/portlet.properties"))
-            .forEach(p -> {
+        Files.walk(Paths.get(rootPath))
+            // We don't need to analyze war files since, they are still like in previous versions so properties still remain in the same place
+            .filter(path -> ((path.toFile().getAbsolutePath().endsWith(".jar")) || (path.toFile().getAbsolutePath().endsWith(".lpkg"))) && (!path.toFile().getAbsolutePath().contains("/osgi/state/")))
+            .forEach(path -> {
                 try {
-                    String absolutePath = p.toFile().getAbsolutePath();
+                    String absolutePath = path.toFile().getAbsolutePath();
 
-                    Properties portletProperties = getProperties(absolutePath);
+                    Properties portletProperties = new Properties();
 
-                    Enumeration enuKeys = portletProperties.keys();
+                    if (absolutePath.endsWith(".jar") && (isLiferayJar(absolutePath))) {
+                        JarFile jar = new JarFile(absolutePath);
 
-                    while (enuKeys.hasMoreElements()) {
-                        portletsProperties.add(new Pair<String, String>((String) enuKeys.nextElement(), absolutePath));
+                        JarEntry portletPropertiesFile = jar.getJarEntry("portlet.properties");
+
+                        if (portletPropertiesFile != null) {
+                            getPropertiesFromJar("jar:file:" + absolutePath + "!/portlet.properties", portletProperties);
+                        }
+
+                        Enumeration enuKeys = portletProperties.keys();
+
+                        while (enuKeys.hasMoreElements()) {
+                            portletsProperties.add(new Pair<String, String>((String) enuKeys.nextElement(), absolutePath + "/portlet.properties"));
+                        }
+                    }
+                    else if (absolutePath.endsWith(".lpkg")) {
+                        ZipFile zipFile = new ZipFile(absolutePath);
+
+                        Enumeration enu = zipFile.entries();
+
+                        while(enu.hasMoreElements()) {
+                            ZipEntry zipEntry = (ZipEntry) enu.nextElement();
+
+                            if (zipEntry.getName().endsWith(".jar") && (isLiferayJar(zipEntry.getName()))) {
+                                try (JarInputStream jarIS = new JarInputStream(zipFile.getInputStream(zipEntry))) {
+                                    ZipEntry zipEntryJar = jarIS.getNextEntry();
+
+                                    while (zipEntryJar != null) {
+                                        if (zipEntryJar.getName().equals("portlet.properties")) {
+                                            portletProperties.load(jarIS);
+
+                                            Enumeration enuKeys = portletProperties.keys();
+
+                                            while (enuKeys.hasMoreElements()) {
+                                                portletsProperties.add(new Pair<String, String>((String) enuKeys.nextElement(), absolutePath + "/" + zipEntry.getName() + "/portlet.properties"));
+                                            }
+
+                                            break;
+                                        }
+
+                                        zipEntryJar = jarIS.getNextEntry();
+                                    }
+                                }
+                                catch (Exception e) {
+                                    continue;
+                                }
+                            }
+                        }
                     }
                 }
                 catch (Exception e) {
                     System.out.println("Unable to get portlet properties");
+
+                    e.printStackTrace();
 
                     return;
                 }
@@ -357,6 +417,14 @@ public class PropertiesLocator {
         int index = property.indexOf(StringPool.PERIOD);
 
         return property.substring(0, index);
+    }
+
+    protected static boolean isLiferayJar(String path) {
+        if (!path.contains("com.liferay")) {
+            return false;
+        }
+
+        return true;
     }
 
     protected static boolean match(String originalProperty, Pair<String, String> property, int minOccurrences, String portletName) {
