@@ -1,6 +1,7 @@
 package com.liferay.upgrade.properties.locator;
 
 import com.liferay.portal.kernel.util.ArrayUtil;
+import com.liferay.portal.kernel.util.StringPool;
 import jdk.internal.org.objectweb.asm.*;
 
 import java.io.IOException;
@@ -16,24 +17,25 @@ public class ConfigurationClassData {
         cr.accept(new ConfigClassVisitor(), ClassReader.SKIP_CODE);
     }
 
-    public static String getSuperClass() {
+    public String getSuperClass() {
         return _superClass;
     }
 
-    public static String[] getConfigFields() {
+    public String[] getConfigFields() {
         return _configFields;
     }
 
-    private static void addConfigField(String configField) {
+    private void addConfigField(String configField) {
         _configFields = ArrayUtil.append(_configFields, configField);
     }
 
-    private static void setSuperClass(String superClass) {
+    private void setSuperClass(String superClass) {
         _superClass = superClass;
     }
 
-    private static String _superClass;
-    private static String[] _configFields = new String[0];
+    private String _classPath;
+    private String[] _configFields = new String[0];
+    private String _superClass;
 
     private class MethodAnnotationScanner extends MethodVisitor {
 

@@ -265,7 +265,7 @@ public class PropertiesLocator {
     }
 
     protected static SortedSet<String> checkConfigurationProperties(SortedSet<String> properties, String rootPath) throws IOException {
-        List<Pair<String, String>> configurationProperties = new ArrayList<>();
+        Map<String, ConfigurationClassData> configClassesMap = new HashMap<>();
 
         Files.walk(Paths.get(rootPath))
             .filter(path -> ((path.toFile().getAbsolutePath().endsWith(".jar")) || (path.toFile().getAbsolutePath().endsWith(".lpkg"))) && (!path.toFile().getAbsolutePath().contains("/osgi/state/")))
@@ -273,21 +273,13 @@ public class PropertiesLocator {
                 try {
                     String absolutePath = path.toFile().getAbsolutePath();
 
-                    Properties portletProperties = new Properties();
-
                     if (isLiferayJar(absolutePath)) {
                         try (JarInputStream jarIs = new JarInputStream(new FileInputStream(absolutePath))) {
                             ZipEntry zipEntryJar = jarIs.getNextEntry();
 
                             while (zipEntryJar != null) {
                                 if (zipEntryJar.getName().endsWith("Configuration.class")) {
-                                    ConfigurationClassData ccd = new ConfigurationClassData(jarIs);
-
-                                    String[] configFields = ccd.getConfigFields();
-
-                                    for (String configField : configFields) {
-                                        configurationProperties.add(new Pair<String, String>(configField, zipEntryJar.getName()));
-                                    }
+                                    configClassesMap.put(zipEntryJar.getName().replace(".class", StringPool.BLANK), new ConfigurationClassData(jarIs));
                                 }
 
                                 zipEntryJar = jarIs.getNextEntry();
@@ -313,13 +305,7 @@ public class PropertiesLocator {
 
                                     while (zipEntryJar != null) {
                                         if (zipEntryJar.getName().endsWith("Configuration.class")) {
-                                            ConfigurationClassData ccd = new ConfigurationClassData(jarIs);
-
-                                            String[] configFields = ccd.getConfigFields();
-
-                                            for (String configField : configFields) {
-                                                configurationProperties.add(new Pair<String, String>(configField, zipEntryJar.getName()));
-                                            }
+                                            configClassesMap.put(zipEntryJar.getName().replace(".class", StringPool.BLANK), new ConfigurationClassData(jarIs));
                                         }
 
                                         zipEntryJar = jarIs.getNextEntry();
@@ -340,6 +326,9 @@ public class PropertiesLocator {
                     return;
                 }
             });
+
+
+        List<Pair<String, String[]>> configurationProperties = getConfigurationProperties(configClassesMap);
 
         SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
 
@@ -365,9 +354,7 @@ public class PropertiesLocator {
                 for (Map.Entry<String, String> match : matches.entrySet()) {
                     String path = match.getValue();
 
-                    String configFileName = path.replace(".class", StringPool.BLANK);
-
-                    configFileName = StringUtil.replace(configFileName, StringPool.FORWARD_SLASH.charAt(0), StringPool.PERIOD.charAt(0));
+                    String configFileName = StringUtil.replace(path, StringPool.FORWARD_SLASH.charAt(0), StringPool.PERIOD.charAt(0));
 
                     _outputFile.print("\t\t");
                     _outputFile.println(match.getKey() +  " from " +  configFileName);
@@ -380,13 +367,47 @@ public class PropertiesLocator {
         return properties;
     }
 
-    protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String>> matches, String portletName) {
+    protected static List<Pair<String, String[]>> getConfigurationProperties(Map<String, ConfigurationClassData> configClassesMap) {
+        List<Pair<String, String[]>> configurationProperties = new ArrayList<>();
+
+        for (Map.Entry<String, ConfigurationClassData> configClass : configClassesMap.entrySet()) {
+            String className = configClass.getKey();
+            ConfigurationClassData configClassData = configClass.getValue();
+
+            String[] allConfigFields = addConfigurationPropertiesByHeritance(configClassData.getSuperClass(), configClassData.getConfigFields(), configClassesMap);
+
+
+            if (allConfigFields.length > 0) {
+                configurationProperties.add(new Pair<>(className, allConfigFields));
+            }
+        }
+
+        return configurationProperties;
+    }
+
+    protected static String[] addConfigurationPropertiesByHeritance(String superClass, String[] configFields, Map<String, ConfigurationClassData> configClassesMap) {
+        if ((!superClass.equals("java/lang/Object"))) {
+            ConfigurationClassData superClassData = configClassesMap.get(superClass);
+
+            String[] superConfigFields = new String[0];
+
+            if (superClassData != null) {
+                superConfigFields = addConfigurationPropertiesByHeritance(superClassData.getSuperClass(), superClassData.getConfigFields(), configClassesMap);
+            }
+
+            return ArrayUtil.append(configFields, superConfigFields);
+        }
+
+        return configFields;
+    }
+
+    protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String[]>> matches, String portletName) {
         SortedMap<String, String> mostLikelyMatches = new TreeMap();
 
         //Default min occurrences to match
         int maxOccurrences = 2;
 
-        for (Pair<String, String> match : matches) {
+        for (Pair<String, String[]> match : matches) {
             if (match(property, match, maxOccurrences, portletName)) {
                 int occurrences = getOccurrences(property, match.first);
 
@@ -461,7 +482,7 @@ public class PropertiesLocator {
         return true;
     }
 
-    protected static boolean match(String originalProperty, Pair<String, String> property, int minOccurrences, String portletName) {
+    protected static boolean match(String originalProperty, Pair<String, String[]> property, int minOccurrences, String portletName) {
         String propertyPath = property.second;
 
         portletName = getEquivalence(portletName);
