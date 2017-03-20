@@ -1,4 +1,4 @@
-package com.liferay.upgrade;
+package com.liferay.upgrade.properties.locator;
 
 import com.liferay.portal.kernel.util.*;
 
@@ -14,7 +14,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.stream.Stream;
-import java.util.zip.InflaterInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -173,7 +172,7 @@ public class PropertiesLocator {
 
                     Properties portletProperties = new Properties();
 
-                    if (absolutePath.endsWith(".jar") && (isLiferayJar(absolutePath))) {
+                    if (isLiferayJar(absolutePath)) {
                         JarFile jar = new JarFile(absolutePath);
 
                         JarEntry portletPropertiesFile = jar.getJarEntry("portlet.properties");
@@ -196,7 +195,7 @@ public class PropertiesLocator {
                         while(enu.hasMoreElements()) {
                             ZipEntry zipEntry = (ZipEntry) enu.nextElement();
 
-                            if (zipEntry.getName().endsWith(".jar") && (isLiferayJar(zipEntry.getName()))) {
+                            if (isLiferayJar(zipEntry.getName())) {
                                 try (JarInputStream jarIs = new JarInputStream(zipFile.getInputStream(zipEntry))) {
                                     ZipEntry zipEntryJar = jarIs.getNextEntry();
 
@@ -276,15 +275,22 @@ public class PropertiesLocator {
 
                     Properties portletProperties = new Properties();
 
-                    if (absolutePath.endsWith(".jar") && (isLiferayJar(absolutePath))) {
+                    if (isLiferayJar(absolutePath)) {
                         try (JarInputStream jarIs = new JarInputStream(new FileInputStream(absolutePath))) {
                             ZipEntry zipEntryJar = jarIs.getNextEntry();
 
                             while (zipEntryJar != null) {
                                 if (zipEntryJar.getName().endsWith("Configuration.class")) {
+                                    ConfigurationClassData ccd = new ConfigurationClassData(jarIs);
 
+                                    String[] configFields = ccd.getConfigFields();
+
+                                    for (String configField : configFields) {
+                                        configurationProperties.add(new Pair<String, String>(configField, zipEntryJar.getName()));
+                                    }
                                 }
 
+                                zipEntryJar = jarIs.getNextEntry();
                             }
                         }
                         catch (Exception e) {
@@ -301,21 +307,19 @@ public class PropertiesLocator {
                         while(enu.hasMoreElements()) {
                             ZipEntry zipEntry = (ZipEntry) enu.nextElement();
 
-                            if (zipEntry.getName().endsWith(".jar") && (isLiferayJar(zipEntry.getName()))) {
+                            if (isLiferayJar(zipEntry.getName())) {
                                 try (JarInputStream jarIs = new JarInputStream(zipFile.getInputStream(zipEntry))) {
                                     ZipEntry zipEntryJar = jarIs.getNextEntry();
 
                                     while (zipEntryJar != null) {
-                                        if (zipEntryJar.getName().equals("portlet.properties")) {
-                                            portletProperties.load(jarIs);
+                                        if (zipEntryJar.getName().endsWith("Configuration.class")) {
+                                            ConfigurationClassData ccd = new ConfigurationClassData(jarIs);
 
-                                            Enumeration enuKeys = portletProperties.keys();
+                                            String[] configFields = ccd.getConfigFields();
 
-                                            while (enuKeys.hasMoreElements()) {
-                                                portletsProperties.add(new Pair<String, String>((String) enuKeys.nextElement(), absolutePath + "/" + zipEntry.getName() + "/portlet.properties"));
+                                            for (String configField : configFields) {
+                                                configurationProperties.add(new Pair<String, String>(configField, zipEntryJar.getName()));
                                             }
-
-                                            break;
                                         }
 
                                         zipEntryJar = jarIs.getNextEntry();
@@ -336,43 +340,6 @@ public class PropertiesLocator {
                     return;
                 }
             });
-        /*
-        Files.walk(Paths.get(sourceCodeURL))
-            .filter(p -> p.getFileName().toString().endsWith("Configuration.class"))
-            .forEach(p -> {
-                try {
-                    String absolutePath = p.toFile().getAbsolutePath();
-
-                    BufferedReader in = new BufferedReader(new FileReader(absolutePath));
-
-                    String line = null;
-                    while((line = in.readLine()) != null) {
-                        if (line.contains("@Meta.AD")) {
-                            while((line = in.readLine()) != null) {
-                                if (line.contains("public")) {
-                                    int endIndex = line.lastIndexOf("();");
-                                    int lastSpaceIndex = line.lastIndexOf(" ");
-
-                                    if ((endIndex != -1) && (lastSpaceIndex != -1)) {
-                                        String configurationProperty = line.substring(lastSpaceIndex, endIndex).trim();
-
-                                        configurationProperties.add(new Pair<String, String>(configurationProperty, absolutePath));
-                                    }
-
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                }
-                catch (Exception e) {
-                    System.out.println("Unable to get configuration properties");
-
-                    return;
-                }
-            });
-        */
 
         SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
 
@@ -398,11 +365,11 @@ public class PropertiesLocator {
                 for (Map.Entry<String, String> match : matches.entrySet()) {
                     String path = match.getValue();
 
-                    int index = path.lastIndexOf("com/liferay/");
+                    //int index = path.lastIndexOf("com/liferay/");
 
-                    String configFilePath = path.substring(index);
+                    //String configFilePath = path.substring(index);
 
-                    String configFileName = configFilePath.replace(".java", StringPool.BLANK);
+                    String configFileName = path.replace(".class", StringPool.BLANK);
 
                     configFileName = StringUtil.replace(configFileName, StringPool.FORWARD_SLASH.charAt(0), StringPool.PERIOD.charAt(0));
 
@@ -491,7 +458,7 @@ public class PropertiesLocator {
     }
 
     protected static boolean isLiferayJar(String path) {
-        if (!path.contains("com.liferay")) {
+        if ((!path.endsWith(".jar")) || (!path.contains("com.liferay"))) {
             return false;
         }
 
