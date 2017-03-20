@@ -365,10 +365,6 @@ public class PropertiesLocator {
                 for (Map.Entry<String, String> match : matches.entrySet()) {
                     String path = match.getValue();
 
-                    //int index = path.lastIndexOf("com/liferay/");
-
-                    //String configFilePath = path.substring(index);
-
                     String configFileName = path.replace(".class", StringPool.BLANK);
 
                     configFileName = StringUtil.replace(configFileName, StringPool.FORWARD_SLASH.charAt(0), StringPool.PERIOD.charAt(0));
