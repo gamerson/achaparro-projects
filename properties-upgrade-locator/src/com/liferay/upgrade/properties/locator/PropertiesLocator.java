@@ -246,7 +246,7 @@ public class PropertiesLocator {
         SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
 
         for (String property : properties) {
-            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, portletsProperties, getPortletName(property));
+            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, portletsProperties, getPortletNames(property));
 
             if (mostLikelyMatches.size() > 0) {
                 foundedProperties.put(property, mostLikelyMatches);
@@ -345,7 +345,7 @@ public class PropertiesLocator {
         SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
 
         for (String property : properties) {
-            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, configurationProperties, getPortletName(property));
+            SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, configurationProperties, getPortletNames(property));
 
             if (mostLikelyMatches.size() != 0) {
                 foundedProperties.put(property, mostLikelyMatches);
@@ -413,7 +413,7 @@ public class PropertiesLocator {
         return configFields;
     }
 
-    protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String[]>> matches, String portletName) {
+    protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String[]>> matches, String[] portletName) {
         SortedMap<String, String> mostLikelyMatches = new TreeMap();
 
         //Default min occurrences to match
@@ -482,10 +482,32 @@ public class PropertiesLocator {
         return numOccurrences;
     }
 
-    protected static String getPortletName(String property) {
-        int index = property.indexOf(StringPool.PERIOD);
+    /*
+        We get portlet names from first two words in a property
+     */
+    protected static String[] getPortletNames(String property) {
+        String[] portletNames = new String[0];
 
-        return property.substring(0, index);
+        int index = 0;
+
+        while ((portletNames.length < 2) && (index != -1)) {
+            index = property.indexOf(StringPool.PERIOD);
+
+            String portletName;
+
+            if (index == -1) {
+                portletName = property;
+            }
+            else {
+                portletName = property.substring(0, index);
+
+                property = property.substring(index + 1);
+            }
+
+            portletNames = ArrayUtil.append(portletNames, portletName);
+        }
+
+        return portletNames;
     }
 
     protected static boolean isLiferayJar(String path) {
@@ -496,11 +518,23 @@ public class PropertiesLocator {
         return true;
     }
 
-    protected static boolean match(String originalProperty, String newProperty, String newPropertyPath, int minOccurrences, String portletName) {
-        portletName = getEquivalence(portletName);
+    protected static boolean match(String originalProperty, String newProperty, String newPropertyPath, int minOccurrences, String[] portletNames) {
+        boolean found = false;
 
-        if (portletName != null) {
-            if (!newPropertyPath.contains(portletName)) {return false;}
+        for (String portletName : portletNames) {
+            portletName = getEquivalence(portletName);
+
+            if (portletName != null) {
+                if (newPropertyPath.contains(portletName)) {
+                    found = true;
+
+                    break;
+                }
+            }
+        }
+
+        if (!found) {
+            return false;
         }
 
         String originalPropertyWithoutPrefix = removeCommonPrefix(originalProperty);
