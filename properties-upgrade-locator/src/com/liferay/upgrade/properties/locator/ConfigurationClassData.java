@@ -33,7 +33,6 @@ public class ConfigurationClassData {
         _superClass = superClass;
     }
 
-    private String _classPath;
     private String[] _configFields = new String[0];
     private String _superClass;
 
@@ -70,7 +69,13 @@ public class ConfigurationClassData {
 
         @Override
         public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-            setSuperClass(superName);
+            if ((superName.equals("java/lang/Object")) && (interfaces.length == 1)) {
+                // When it's an interface and extends from another interface
+                setSuperClass(interfaces[0]);
+            }
+            else {
+                setSuperClass(superName);
+            }
 
             super.visit(version, access, name, signature, superName, interfaces);
         }

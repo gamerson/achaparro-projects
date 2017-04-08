@@ -161,7 +161,7 @@ public class PropertiesLocator {
     }
 
     protected static SortedSet<String> checkPortletProperties(SortedSet<String> properties, String rootPath) throws Exception {
-        List<Pair<String, String>> portletsProperties = new ArrayList<>();
+        List<Pair<String, String[]>> portletsProperties = new ArrayList<>();
 
         Files.walk(Paths.get(rootPath))
             // We don't need to analyze war files since, they are still like in previous versions so properties still remain in the same place
@@ -183,8 +183,14 @@ public class PropertiesLocator {
 
                         Enumeration enuKeys = portletProperties.keys();
 
+                        String[] propertyKeys = new String[0];
+
                         while (enuKeys.hasMoreElements()) {
-                            portletsProperties.add(new Pair<String, String>((String) enuKeys.nextElement(), absolutePath + "/portlet.properties"));
+                            propertyKeys = ArrayUtil.append(propertyKeys, (String) enuKeys.nextElement());
+                        }
+
+                        if (propertyKeys.length != 0) {
+                            portletsProperties.add(new Pair<String, String[]>(absolutePath + "/portlet.properties", propertyKeys));
                         }
                     }
                     else if (absolutePath.endsWith(".lpkg")) {
@@ -205,8 +211,14 @@ public class PropertiesLocator {
 
                                             Enumeration enuKeys = portletProperties.keys();
 
+                                            String[] propertyKeys = new String[0];
+
                                             while (enuKeys.hasMoreElements()) {
-                                                portletsProperties.add(new Pair<String, String>((String) enuKeys.nextElement(), absolutePath + "/" + zipEntry.getName() + "/portlet.properties"));
+                                                propertyKeys = ArrayUtil.append(propertyKeys, (String) enuKeys.nextElement());
+                                            }
+
+                                            if (propertyKeys.length != 0) {
+                                                portletsProperties.add(new Pair<String, String[]>(absolutePath + "/" + zipEntry.getName() + "/portlet.properties", propertyKeys));
                                             }
 
                                             break;
@@ -408,16 +420,18 @@ public class PropertiesLocator {
         int maxOccurrences = 2;
 
         for (Pair<String, String[]> match : matches) {
-            if (match(property, match, maxOccurrences, portletName)) {
-                int occurrences = getOccurrences(property, match.first);
+            for (String matchProperty : match.second) {
+                if (match(property, matchProperty, match.first, maxOccurrences, portletName)) {
+                    int occurrences = getOccurrences(property, match.first);
 
-                if (occurrences > maxOccurrences) {
-                    mostLikelyMatches.clear();
+                    if (occurrences > maxOccurrences) {
+                        mostLikelyMatches.clear();
 
-                    maxOccurrences = occurrences;
+                        maxOccurrences = occurrences;
+                    }
+
+                    mostLikelyMatches.put(match.first, matchProperty);
                 }
-
-                mostLikelyMatches.put(match.first, match.second);
             }
         }
 
@@ -482,20 +496,16 @@ public class PropertiesLocator {
         return true;
     }
 
-    protected static boolean match(String originalProperty, Pair<String, String[]> property, int minOccurrences, String portletName) {
-        String propertyPath = property.second;
-
+    protected static boolean match(String originalProperty, String newProperty, String newPropertyPath, int minOccurrences, String portletName) {
         portletName = getEquivalence(portletName);
 
         if (portletName != null) {
-            if (!propertyPath.contains(portletName)) {return false;}
+            if (!newPropertyPath.contains(portletName)) {return false;}
         }
 
         String originalPropertyWithoutPrefix = removeCommonPrefix(originalProperty);
 
-        String propertyName = property.first;
-
-        int numOccurrences = getOccurrences(originalPropertyWithoutPrefix, propertyName);
+        int numOccurrences = getOccurrences(originalPropertyWithoutPrefix, newProperty);
 
         if ((numOccurrences == 0) || (numOccurrences < minOccurrences)) {
             return false;
