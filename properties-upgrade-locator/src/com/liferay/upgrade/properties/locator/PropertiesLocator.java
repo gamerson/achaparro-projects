@@ -439,7 +439,7 @@ public class PropertiesLocator {
             SortedMap<String, String> theMostLikelyMatches = new TreeMap();
 
             for (Map.Entry<String, String> match : mostLikelyMatches.entrySet()) {
-                if (matchSuffix(property, match.getKey())) {
+                if (matchSuffix(property, match.getValue())) {
                     theMostLikelyMatches.put(match.getKey(), match.getValue());
                 }
             }
