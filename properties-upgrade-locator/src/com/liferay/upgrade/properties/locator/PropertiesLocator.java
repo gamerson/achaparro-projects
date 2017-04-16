@@ -413,7 +413,7 @@ public class PropertiesLocator {
         return configFields;
     }
 
-    protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String[]>> matches, String[] portletName) {
+    protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String[]>> matches, String[] portletNames) {
         SortedMap<String, String> mostLikelyMatches = new TreeMap();
 
         //Default min occurrences to match
@@ -421,7 +421,7 @@ public class PropertiesLocator {
 
         for (Pair<String, String[]> match : matches) {
             for (String matchProperty : match.second) {
-                if (match(property, matchProperty, match.first, maxOccurrences, portletName)) {
+                if (match(property, matchProperty, match.first, maxOccurrences, portletNames)) {
                     int occurrences = getOccurrences(property, match.first);
 
                     if (occurrences > maxOccurrences) {
@@ -436,20 +436,45 @@ public class PropertiesLocator {
         }
 
         if (mostLikelyMatches.size() > 1) {
-            SortedMap<String, String> theMostLikelyMatches = new TreeMap();
-
-            for (Map.Entry<String, String> match : mostLikelyMatches.entrySet()) {
-                if (matchSuffix(property, match.getValue())) {
-                    theMostLikelyMatches.put(match.getKey(), match.getValue());
-                }
-            }
-
-            if (theMostLikelyMatches.size() > 0) {
-                mostLikelyMatches = theMostLikelyMatches;
-            }
+            mostLikelyMatches = filterMostLikelyMatches(property, portletNames, mostLikelyMatches);
         }
 
         return mostLikelyMatches;
+    }
+
+    protected static SortedMap<String, String> filterMostLikelyMatches(String property, String[] portletNames, SortedMap<String, String> mostLikelyMatches) {
+        SortedMap<String, String> theMostLikelyMatches = new TreeMap();
+
+        String[] portletNameAsProperty = new String[1];
+
+        portletNameAsProperty[0] = getPortletNameAsProperty(portletNames);
+
+        for (Map.Entry<String, String> match : mostLikelyMatches.entrySet()) {
+            // Check for containing whole portletName in the path
+            if (pathContainsPortletName(match.getKey(), portletNameAsProperty)) {
+				theMostLikelyMatches.put(match.getKey(), match.getValue());
+            }
+        }
+
+        if (theMostLikelyMatches.size() > 0) {
+            mostLikelyMatches = theMostLikelyMatches;
+
+			theMostLikelyMatches = new TreeMap();
+        }
+
+       for (Map.Entry<String, String> match : mostLikelyMatches.entrySet()) {
+            // Check for containing same suffix the original property
+            if (matchSuffix(property, match.getValue())) {
+                theMostLikelyMatches.put(match.getKey(), match.getValue());
+            }
+        }
+
+		if (theMostLikelyMatches.size() > 0) {
+			return theMostLikelyMatches;
+		}
+		else {
+			return mostLikelyMatches;
+		}
     }
 
     protected static String getEquivalence(String portletName) {
@@ -510,6 +535,20 @@ public class PropertiesLocator {
         return portletNames;
     }
 
+    protected static String getPortletNameAsProperty(String[] portletNames) {
+        String portletNameAsProperty = StringPool.BLANK;
+
+        for (String portletName : portletNames) {
+            if (portletNameAsProperty.length() > 0) {
+                portletNameAsProperty += StringPool.PERIOD;
+            }
+
+            portletNameAsProperty += portletName;
+        }
+
+        return portletNameAsProperty;
+    }
+
     protected static boolean isLiferayJar(String path) {
         if ((!path.endsWith(".jar")) || (!path.contains("com.liferay"))) {
             return false;
@@ -519,21 +558,7 @@ public class PropertiesLocator {
     }
 
     protected static boolean match(String originalProperty, String newProperty, String newPropertyPath, int minOccurrences, String[] portletNames) {
-        boolean found = false;
-
-        for (String portletName : portletNames) {
-            portletName = getEquivalence(portletName);
-
-            if (portletName != null) {
-                if (newPropertyPath.contains(portletName)) {
-                    found = true;
-
-                    break;
-                }
-            }
-        }
-
-        if (!found) {
+        if (!pathContainsPortletName(newPropertyPath, portletNames)) {
             return false;
         }
 
@@ -546,6 +571,20 @@ public class PropertiesLocator {
         }
 
         return true;
+    }
+
+    protected static boolean pathContainsPortletName(String propertyPath, String[] portletNames) {
+        for (String portletName : portletNames) {
+            portletName = getEquivalence(portletName);
+
+            if (portletName != null) {
+                if (propertyPath.contains(portletName)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     protected static boolean matchSuffix(String originalProperty, String property) {
