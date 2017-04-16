@@ -207,6 +207,8 @@ public class PropertiesLocator {
 
 										while (zipEntryJar != null) {
 											if (zipEntryJar.getName().equals("portlet.properties")) {
+												portletProperties = new Properties();
+
 												portletProperties.load(jarIs);
 
 												Enumeration enuKeys = portletProperties.keys();
