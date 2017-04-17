@@ -18,7 +18,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Created by achaparro on 28/12/16.
+ * Created by Alberto Chaparro on 28/12/16.
  */
 public class PropertiesLocator {
 
@@ -245,10 +245,10 @@ public class PropertiesLocator {
 					}
 				});
 
-		SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
+		SortedMap<String, List<Pair<String, String>>> foundedProperties = new TreeMap<>();
 
 		for (String property : properties) {
-			SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, portletsProperties, getPortletNames(property));
+			List<Pair<String, String>> mostLikelyMatches = getMostLikelyMatches(property, portletsProperties, getPortletNames(property));
 
 			if (mostLikelyMatches.size() > 0) {
 				foundedProperties.put(property, mostLikelyMatches);
@@ -258,17 +258,17 @@ public class PropertiesLocator {
 		if (foundedProperties.size() > 0) {
 			_outputFile.println("Some properties have been moved to a module portlet.properties: ");
 
-			for (Map.Entry<String, SortedMap<String, String>> entry : foundedProperties.entrySet()) {
+			for (Map.Entry<String, List<Pair<String, String>>> entry : foundedProperties.entrySet()) {
 				String foundedProperty = entry.getKey();
 
 				_outputFile.print("\t");
 				_outputFile.println(foundedProperty + " can match with the following portlet properties:");
 
-				Map<String, String> matches = entry.getValue();
+				List<Pair<String, String>> matches = entry.getValue();
 
-				for (Map.Entry<String, String> match : matches.entrySet()) {
+				for (Pair<String, String> match : matches) {
 					_outputFile.print("\t\t");
-					_outputFile.println(match.getKey() + " from " + match.getValue());
+					_outputFile.println(match.second + " from " + match.first);
 				}
 
 				properties.remove(foundedProperty);
@@ -344,10 +344,10 @@ public class PropertiesLocator {
 
 		List<Pair<String, String[]>> configurationProperties = getConfigurationProperties(configClassesMap);
 
-		SortedMap<String, SortedMap<String, String>> foundedProperties = new TreeMap<>();
+		SortedMap<String, List<Pair<String, String>>> foundedProperties = new TreeMap<>();
 
 		for (String property : properties) {
-			SortedMap<String, String> mostLikelyMatches = getMostLikelyMatches(property, configurationProperties, getPortletNames(property));
+			List<Pair<String, String>> mostLikelyMatches = getMostLikelyMatches(property, configurationProperties, getPortletNames(property));
 
 			if (mostLikelyMatches.size() != 0) {
 				foundedProperties.put(property, mostLikelyMatches);
@@ -357,21 +357,21 @@ public class PropertiesLocator {
 		if (foundedProperties.size() != 0) {
 			_outputFile.println("Properties moved to OSGI configuration:");
 
-			for (SortedMap.Entry<String, SortedMap<String, String>> entry : foundedProperties.entrySet()) {
+			for (SortedMap.Entry<String, List<Pair<String, String>>> entry : foundedProperties.entrySet()) {
 				String foundedProperty = entry.getKey();
 
 				_outputFile.print("\t");
 				_outputFile.println(foundedProperty + " can match with the following OSGI properties:");
 
-				Map<String, String> matches = entry.getValue();
+				List<Pair<String, String>> matches = entry.getValue();
 
-				for (Map.Entry<String, String> match : matches.entrySet()) {
-					String path = match.getValue();
+				for (Pair<String, String> match : matches) {
+					String path = match.first;
 
 					String configFileName = StringUtil.replace(path, StringPool.FORWARD_SLASH.charAt(0), StringPool.PERIOD.charAt(0));
 
 					_outputFile.print("\t\t");
-					_outputFile.println(match.getKey() +  " from " +  configFileName);
+					_outputFile.println(match.second +  " from " +  configFileName);
 				}
 
 				properties.remove(foundedProperty);
@@ -415,8 +415,8 @@ public class PropertiesLocator {
 		return configFields;
 	}
 
-	protected static SortedMap<String, String> getMostLikelyMatches(String property, List<Pair<String, String[]>> matches, String[] portletNames) {
-		SortedMap<String, String> mostLikelyMatches = new TreeMap();
+	protected static List<Pair<String, String>> getMostLikelyMatches(String property, List<Pair<String, String[]>> matches, String[] portletNames) {
+		List<Pair<String, String>> mostLikelyMatches = new ArrayList<>();
 
 		//Default min occurrences to match
 		int maxOccurrences = 2;
@@ -424,7 +424,7 @@ public class PropertiesLocator {
 		for (Pair<String, String[]> match : matches) {
 			for (String matchProperty : match.second) {
 				if (match(property, matchProperty, match.first, maxOccurrences, portletNames)) {
-					int occurrences = getOccurrences(property, match.first);
+					int occurrences = getOccurrences(property, matchProperty);
 
 					if (occurrences > maxOccurrences) {
 						mostLikelyMatches.clear();
@@ -432,7 +432,7 @@ public class PropertiesLocator {
 						maxOccurrences = occurrences;
 					}
 
-					mostLikelyMatches.put(match.first, matchProperty);
+					mostLikelyMatches.add(new Pair<>(match.first, matchProperty));
 				}
 			}
 		}
@@ -444,30 +444,30 @@ public class PropertiesLocator {
 		return mostLikelyMatches;
 	}
 
-	protected static SortedMap<String, String> filterMostLikelyMatches(String property, String[] portletNames, SortedMap<String, String> mostLikelyMatches) {
-		SortedMap<String, String> theMostLikelyMatches = new TreeMap();
+	protected static List<Pair<String, String>> filterMostLikelyMatches(String property, String[] portletNames, List<Pair<String, String>> mostLikelyMatches) {
+		List<Pair<String, String>> theMostLikelyMatches = new ArrayList<>();
 
 		String[] portletNameAsProperty = new String[1];
 
 		portletNameAsProperty[0] = getPortletNameAsProperty(portletNames);
 
-		for (Map.Entry<String, String> match : mostLikelyMatches.entrySet()) {
+		for (Pair<String, String> match : mostLikelyMatches) {
 			// Check for containing whole portletName in the path
-			if (pathContainsPortletName(match.getKey(), portletNameAsProperty)) {
-				theMostLikelyMatches.put(match.getKey(), match.getValue());
+			if (pathContainsPortletName(match.first, portletNameAsProperty)) {
+				theMostLikelyMatches.add(new Pair<>(match.first, match.second));
 			}
 		}
 
 		if (theMostLikelyMatches.size() > 0) {
 			mostLikelyMatches = theMostLikelyMatches;
 
-			theMostLikelyMatches = new TreeMap();
+			theMostLikelyMatches = new ArrayList<>();
 		}
 
-		for (Map.Entry<String, String> match : mostLikelyMatches.entrySet()) {
+		for (Pair<String, String> match : mostLikelyMatches) {
 			// Check for containing same suffix the original property
-			if (matchSuffix(property, match.getValue())) {
-				theMostLikelyMatches.put(match.getKey(), match.getValue());
+			if (matchSuffix(property, match.second)) {
+				theMostLikelyMatches.add(new Pair<>(match.first, match.second));
 			}
 		}
 
