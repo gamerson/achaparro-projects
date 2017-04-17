@@ -617,6 +617,15 @@ public class PropertiesLocator {
 
 				informationToPrint.add(property + " does not exist anymore. OverWrite the method in the ADT handler. See LPS-67466");
 			}
+
+			if (property.endsWith("breadcrumb.display.style.default")) {
+				informationToPrint.add(property + " has been replaced by ddmTemplateKeyDefault in com.liferay.site.navigation.breadcrumb.web.configuration.SiteNavigationBreadcrumbWebTemplateConfiguration. More information at Breaking Changes for Liferay 7: https://dev.liferay.com/develop/reference/-/knowledge_base/7-0/breaking-changes#replaced-the-breadcrumb-portlets-display-styles-with-adts");
+			}
+
+
+			if (property.endsWith("breadcrumb.display.style.options")) {
+				informationToPrint.add(property + " does not exist anymore. Any DDM template as ddmTemplate_BREADCRUMB-HORIZONTAL-FTL can be used. More information at Breaking Changes for Liferay 7: https://dev.liferay.com/develop/reference/-/knowledge_base/7-0/breaking-changes#replaced-the-breadcrumb-portlets-display-styles-with-adts");
+			}
 		}
 
 		if (removedProperties.size() > 0) {
