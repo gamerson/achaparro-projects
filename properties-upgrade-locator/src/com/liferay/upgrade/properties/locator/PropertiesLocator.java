@@ -490,6 +490,8 @@ public class PropertiesLocator {
 	}
 
 	protected static int getOccurrences(String originalProperty, String property) {
+		String originalPropertyWithoutPrefix = removeCommonPrefix(originalProperty);
+
 		if (!property.contains(StringPool.PERIOD)) {
 			//Camel case property
 			property = CamelCaseUtil.fromCamelCase(property, StringPool.PERIOD.charAt(0));
@@ -497,7 +499,7 @@ public class PropertiesLocator {
 
 		String[] propertyWords = StringUtil.split(property, StringPool.PERIOD);
 
-		String[] originalPropertyWords = StringUtil.split(originalProperty, StringPool.PERIOD);
+		String[] originalPropertyWords = StringUtil.split(originalPropertyWithoutPrefix, StringPool.PERIOD);
 		List<String> originalPropertyWordsList = ListUtil.fromArray(originalPropertyWords);
 
 		int numOccurrences = 0;
@@ -564,9 +566,7 @@ public class PropertiesLocator {
 			return false;
 		}
 
-		String originalPropertyWithoutPrefix = removeCommonPrefix(originalProperty);
-
-		int numOccurrences = getOccurrences(originalPropertyWithoutPrefix, newProperty);
+		int numOccurrences = getOccurrences(originalProperty, newProperty);
 
 		if ((numOccurrences == 0) || (numOccurrences < minOccurrences)) {
 			return false;
