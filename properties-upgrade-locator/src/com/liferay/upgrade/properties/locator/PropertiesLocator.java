@@ -647,6 +647,10 @@ public class PropertiesLocator {
 			if (property.startsWith(prefix)) {
 				property = property.replace(prefix, StringPool.BLANK);
 
+				if (property.startsWith(StringPool.PERIOD)) {
+					property = property.substring(1);
+				}
+
 				break;
 			}
 		}
