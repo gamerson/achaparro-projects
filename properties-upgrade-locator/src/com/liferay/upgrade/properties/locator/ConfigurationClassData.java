@@ -1,7 +1,6 @@
 package com.liferay.upgrade.properties.locator;
 
 import com.liferay.portal.kernel.util.ArrayUtil;
-import com.liferay.portal.kernel.util.StringPool;
 import jdk.internal.org.objectweb.asm.*;
 
 import java.io.IOException;
