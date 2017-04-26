@@ -9,4 +9,4 @@ To execute the application you need:
     - Path to current Liferay 7/DXP bundle
 
 For example (inside dist folder), execute:
-- java -cp "/home/achaparro/servers/dxp/tomcat-8.0.32/lib/ext/portal-kernel.jar:properties-upgrade-locator.jar" com.liferay.upgrade.properties.locator.PropertiesLocator /home/achaparro/code/projects/properties-upgrade-locator/resources/6.2-fix-pack-131/portal.properties /home/achaparro/servers/dxp
+- java -cp "/home/achaparro/servers/dxp/tomcat-8.0.32/lib/ext/portal-kernel.jar:properties-upgrade-locator.jar" com.liferay.upgrade.properties.locator.PropertiesLocator ../resources/6.2-fix-pack-131/portal.properties /home/achaparro/servers/dxp
