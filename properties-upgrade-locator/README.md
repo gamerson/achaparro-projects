@@ -12,5 +12,7 @@ To execute the application you need:
 Like this:
 - java -cp "{DXP_bundle_path}/tomcat-8.0.32/lib/ext/portal-kernel.jar:properties-upgrade-locator.jar" com.liferay.upgrade.properties.locator.PropertiesLocator {your_old_portat-ext.properties_path} {DXP_bundle_path}
 
-For example:
+*Remember to use ; instead of : to separate elements in classpath if you use Windows*
+
+For example in Unix:
 - java -cp "/home/achaparro/servers/dxp/tomcat-8.0.32/lib/ext/portal-kernel.jar:properties-upgrade-locator.jar" com.liferay.upgrade.properties.locator.PropertiesLocator ../resources/6.2-fix-pack-131/portal.properties /home/achaparro/servers/dxp
