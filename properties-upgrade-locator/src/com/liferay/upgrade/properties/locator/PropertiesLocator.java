@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -151,7 +152,11 @@ public class PropertiesLocator {
 
 	protected static PrintWriter generateOutputFile() throws FileNotFoundException {
 		try {
-			return new PrintWriter("checkProperties" + LocalDateTime.now() + ".out");
+			LocalDateTime date = LocalDateTime.now();
+			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
+			String now = date.format(formatter);
+
+			return new PrintWriter("checkProperties" + now + ".out");
 		}
 		catch (FileNotFoundException e) {
 			System.out.println("Unable to generate ouput file");
