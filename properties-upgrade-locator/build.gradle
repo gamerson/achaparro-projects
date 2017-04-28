@@ -4,6 +4,12 @@ repositories {
 	mavenCentral()
 }
 
+compileJava {
+	options.fork = true
+	options.forkOptions.executable = 'javac'
+	options.compilerArgs << "-XDignore.symbol.file"
+}
+
 dependencies {
 	compileOnly group: "com.liferay.portal", name: "com.liferay.portal.kernel", version: "2.20.0"
 }
