@@ -680,7 +680,7 @@ public class PropertiesLocator {
 
 	private static PrintWriter _outputFile;
 
-	private static final String _PORTAL_IMPL_RELATIVE_PATH = "/WEB-INF/lib/portal-impl.jar";
+	private static final String _PORTAL_IMPL_RELATIVE_PATH = File.separator + "WEB-INF" + File.separator + "lib" + File.separator + "portal-impl.jar";
 
 	private static final String[] _COMMON_PREFIXES = new String[] {
 			"asset", "dynamic.data.lists", "dynamic.data.mapping", "journal", "audit", "auth", "blogs", "bookmarks", "cas", "journal", "wiki"
