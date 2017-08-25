@@ -16,3 +16,7 @@ Like this:
 
 For example in Unix:
 - java -cp "/home/achaparro/servers/dxp/tomcat-8.0.32/lib/ext/portal-kernel.jar:properties-upgrade-locator.jar" com.liferay.upgrade.properties.locator.PropertiesLocator ../resources/6.2-fix-pack-131/portal.properties /home/achaparro/servers/dxp
+
+## Online use
+If you just need to check a few propoerties, I have upload the following file with the execution of the whole portal.properties in 6.2 against to DXP SP 28:
+results_with_dxp_fix_pack_28.out
