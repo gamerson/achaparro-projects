@@ -1,4 +1,17 @@
+buildscript {
+	dependencies {
+		classpath group: "com.liferay", name: "com.liferay.gradle.plugins.source.formatter", version: "latest.release"
+		classpath group: "net.saliman", name: "gradle-properties-plugin", version: "1.4.6"
+	}
+
+	repositories {
+		mavenCentral()
+	}
+}
+
+apply plugin: 'com.liferay.source.formatter'
 apply plugin: 'java'
+apply plugin: 'net.saliman.properties'
 
 repositories {
 	mavenCentral()
@@ -8,9 +21,9 @@ compileJava {
 	options.fork = true
 	
 	if (java_home)
-		options.forkOptions.javaHome = file(java_home)
+		options.forkOptions.executable = new File(java_home, "bin/javac")
 	else
-		throw new GradleException('You must set your JAVA_HOME relative path in gradle.properties file.')
+		throw new GradleException('You must set your JAVA_HOME path in gradle.properties file.')
 	
 	options.compilerArgs << "-XDignore.symbol.file"
 }
