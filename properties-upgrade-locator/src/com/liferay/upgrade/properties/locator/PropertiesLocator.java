@@ -69,42 +69,49 @@ public class PropertiesLocator {
 			return;
 		}
 
-		String oldPropertiesFilePath = args[0];
-		String bundlePath = args[1];
+		Path oldPropertiesFilePath = Paths.get(args[0]);
+		Path bundlePath = Paths.get(args[1]);
 
-		_outputFile = generateOutputFile();
+		assert oldPropertiesFilePath.toFile().exists();
+		assert bundlePath.toFile().exists();
+
+		new PropertiesLocator(oldPropertiesFilePath, bundlePath);
+	}
+
+	public PropertiesLocator(Path oldPropertiesFilePath, Path bundlePath) throws Exception {
+		_outputFile = _generateOutputFile();
 
 		String title = "Checking the location for old properties in the new version";
 
 		_outputFile.println(title);
-		printUnderline(title);
+		_printUnderline(title);
 
 		try {
-			Properties oldProperties = getProperties(oldPropertiesFilePath);
+			Properties oldProperties = _getProperties(oldPropertiesFilePath);
 
-			Properties newProperties = getCurrentPortalProperties(bundlePath);
+			Properties newProperties = _getCurrentPortalProperties(bundlePath);
 
 			SortedSet<String> remainedProperties = new TreeSet<>();
 
-			SortedSet<String> removedProperties = getRemovedProperties(
+			SortedSet<String> removedProperties = _getRemovedProperties(
 				oldProperties, newProperties, remainedProperties);
 
-			removedProperties = manageExceptions(removedProperties);
+			removedProperties = _manageExceptions(removedProperties);
 
 			_outputFile.println();
-			removedProperties = checkPortletProperties(removedProperties, bundlePath + "/osgi");
+			removedProperties = _checkPortletProperties(removedProperties, bundlePath + "/osgi");
 
 			_outputFile.println();
-			removedProperties = checkConfigurationProperties(removedProperties, bundlePath + "/osgi");
+			removedProperties = _checkConfigurationProperties(removedProperties, bundlePath + "/osgi");
 
 			_outputFile.println();
 			_outputFile.println(
 				"We haven't found a new property for the following old properties (check if you still need them or check the documentation to find a replacement):");
-			printProperties(removedProperties);
+			_printProperties(removedProperties);
 
 			_outputFile.println();
 			_outputFile.println("The following properties still exist in the new portal.properties:");
-			printProperties(remainedProperties);
+			_printProperties(remainedProperties);
 
 			System.out.println("Done!");
 		}
@@ -113,7 +120,7 @@ public class PropertiesLocator {
 		}
 	}
 
-	protected static String[] addConfigurationPropertiesByHeritance(
+	private static String[] _addConfigurationPropertiesByHeritance(
 		String superClass, String[] configFields, Map<String, ConfigurationClassData> configClassesMap) {
 
 		if ((!superClass.equals("java/lang/Object"))) {
@@ -122,7 +129,7 @@ public class PropertiesLocator {
 			String[] superConfigFields = new String[0];
 
 			if (superClassData != null) {
-				superConfigFields = addConfigurationPropertiesByHeritance(
+				superConfigFields = _addConfigurationPropertiesByHeritance(
 					superClassData.getSuperClass(), superClassData.getConfigFields(), configClassesMap);
 			}
 
@@ -132,7 +139,7 @@ public class PropertiesLocator {
 		return configFields;
 	}
 
-	protected static SortedSet<String> checkConfigurationProperties(SortedSet<String> properties, String rootPath)
+	private static SortedSet<String> _checkConfigurationProperties(SortedSet<String> properties, String rootPath)
 		throws IOException {
 
 		Map<String, ConfigurationClassData> configClassesMap = new HashMap<>();
@@ -146,7 +153,7 @@ public class PropertiesLocator {
 					try {
 						String absolutePath = path.toFile().getAbsolutePath();
 
-						if (isLiferayJar(absolutePath)) {
+						if (_isLiferayJar(absolutePath)) {
 							try (JarInputStream jarIs =
 							new JarInputStream(new FileInputStream(absolutePath))) {
 
@@ -175,7 +182,7 @@ public class PropertiesLocator {
 									while (enu.hasMoreElements()) {
 										ZipEntry zipEntry = (ZipEntry)enu.nextElement();
 
-										if (isLiferayJar(zipEntry.getName())) {
+										if (_isLiferayJar(zipEntry.getName())) {
 											try (JarInputStream jarIs =
 											new JarInputStream(zipFile.getInputStream(zipEntry))) {
 
@@ -208,13 +215,13 @@ public class PropertiesLocator {
 					}
 				});
 
-		List<Pair<String, String[]>> configurationProperties = getConfigurationProperties(configClassesMap);
+		List<Pair<String, String[]>> configurationProperties = _getConfigurationProperties(configClassesMap);
 
 		SortedMap<String, List<Pair<String, String>>> foundedProperties = new TreeMap<>();
 
 		for (String property : properties) {
-			List<Pair<String, String>> mostLikelyMatches = getMostLikelyMatches(
-				property, configurationProperties, getPortletNames(property));
+			List<Pair<String, String>> mostLikelyMatches = _getMostLikelyMatches(
+				property, configurationProperties, _getPortletNames(property));
 
 			if (mostLikelyMatches.size() != 0) {
 				foundedProperties.put(property, mostLikelyMatches);
@@ -249,7 +256,7 @@ public class PropertiesLocator {
 		return properties;
 	}
 
-	protected static SortedSet<String> checkPortletProperties(SortedSet<String> properties, String rootPath)
+	private static SortedSet<String> _checkPortletProperties(SortedSet<String> properties, String rootPath)
 		throws Exception {
 
 		List<Pair<String, String[]>> portletsProperties = new ArrayList<>();
@@ -268,12 +275,12 @@ public class PropertiesLocator {
 
 						Properties portletProperties = new Properties();
 
-						if (isLiferayJar(absolutePath)) {
+						if (_isLiferayJar(absolutePath)) {
 							try (JarFile jar = new JarFile(absolutePath)) {
 									JarEntry portletPropertiesFile = jar.getJarEntry("portlet.properties");
 
 									if (portletPropertiesFile != null) {
-										getPropertiesFromJar(
+										_getPropertiesFromJar(
 											"jar:file:" + absolutePath + "!/portlet.properties", portletProperties);
 									}
 
@@ -299,7 +306,7 @@ public class PropertiesLocator {
 									while (enu.hasMoreElements()) {
 										ZipEntry zipEntry = (ZipEntry)enu.nextElement();
 
-										if (isLiferayJar(zipEntry.getName())) {
+										if (_isLiferayJar(zipEntry.getName())) {
 											try (JarInputStream jarIs =
 											new JarInputStream(zipFile.getInputStream(zipEntry))) {
 
@@ -353,8 +360,8 @@ public class PropertiesLocator {
 		SortedMap<String, List<Pair<String, String>>> foundedProperties = new TreeMap<>();
 
 		for (String property : properties) {
-			List<Pair<String, String>> mostLikelyMatches = getMostLikelyMatches(
-				property, portletsProperties, getPortletNames(property));
+			List<Pair<String, String>> mostLikelyMatches = _getMostLikelyMatches(
+				property, portletsProperties, _getPortletNames(property));
 
 			if (mostLikelyMatches.size() > 0) {
 				foundedProperties.put(property, mostLikelyMatches);
@@ -384,20 +391,20 @@ public class PropertiesLocator {
 		return properties;
 	}
 
-	protected static List<Pair<String, String>> filterMostLikelyMatches(
+	private static List<Pair<String, String>> _filterMostLikelyMatches(
 		String property, String[] portletNames, List<Pair<String, String>> mostLikelyMatches) {
 
 		List<Pair<String, String>> theMostLikelyMatches = new ArrayList<>();
 
 		String[] portletNameAsProperty = new String[1];
 
-		portletNameAsProperty[0] = getPortletNameAsProperty(portletNames);
+		portletNameAsProperty[0] = _getPortletNameAsProperty(portletNames);
 
 		for (Pair<String, String> match : mostLikelyMatches) {
 
 			// Check for containing whole portletName in the path
 
-			if (pathContainsPortletName(match.first, portletNameAsProperty)) {
+			if (_pathContainsPortletName(match.first, portletNameAsProperty)) {
 				theMostLikelyMatches.add(new Pair<>(match.first, match.second));
 			}
 		}
@@ -412,7 +419,7 @@ public class PropertiesLocator {
 
 			// Check for containing same suffix the original property
 
-			if (matchSuffix(property, match.second)) {
+			if (_matchSuffix(property, match.second)) {
 				theMostLikelyMatches.add(new Pair<>(match.first, match.second));
 			}
 		}
@@ -425,7 +432,7 @@ public class PropertiesLocator {
 		}
 	}
 
-	protected static PrintWriter generateOutputFile() throws FileNotFoundException {
+	private static PrintWriter _generateOutputFile() throws FileNotFoundException {
 		try {
 			LocalDateTime date = LocalDateTime.now();
 			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
@@ -440,7 +447,7 @@ public class PropertiesLocator {
 		}
 	}
 
-	protected static List<Pair<String, String[]>> getConfigurationProperties(
+	private static List<Pair<String, String[]>> _getConfigurationProperties(
 		Map<String, ConfigurationClassData> configClassesMap) {
 
 		List<Pair<String, String[]>> configurationProperties = new ArrayList<>();
@@ -449,7 +456,7 @@ public class PropertiesLocator {
 			String className = configClass.getKey();
 			ConfigurationClassData configClassData = configClass.getValue();
 
-			String[] allConfigFields = addConfigurationPropertiesByHeritance(
+			String[] allConfigFields = _addConfigurationPropertiesByHeritance(
 				configClassData.getSuperClass(), configClassData.getConfigFields(), configClassesMap);
 
 			if (allConfigFields.length > 0) {
@@ -460,17 +467,17 @@ public class PropertiesLocator {
 		return configurationProperties;
 	}
 
-	protected static Properties getCurrentPortalProperties(String bundlePath) throws Exception {
+	private static Properties _getCurrentPortalProperties(Path bundlePath) throws Exception {
 		Properties properties = new Properties();
 
 		try (Stream<Path> paths = Files.find(
-				Paths.get(bundlePath), Integer.MAX_VALUE,
+				bundlePath, Integer.MAX_VALUE,
 				(path, attrs) -> attrs.isRegularFile() &&
 						 path.toString().endsWith(_PORTAL_IMPL_RELATIVE_PATH))) {
 
 			paths.limit(1).forEach(path -> {
 				try {
-					getPropertiesFromJar("jar:file:" + path.toString() + "!/portal.properties", properties);
+					_getPropertiesFromJar("jar:file:" + path.toString() + "!/portal.properties", properties);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -484,7 +491,7 @@ public class PropertiesLocator {
 		return properties;
 	}
 
-	protected static String getEquivalence(String portletName) {
+	private static String _getEquivalence(String portletName) {
 		String equivalence = _portletNameEquivalences.get(portletName);
 
 		if (equivalence != null) {
@@ -494,7 +501,7 @@ public class PropertiesLocator {
 		return portletName;
 	}
 
-	protected static List<Pair<String, String>> getMostLikelyMatches(
+	private static List<Pair<String, String>> _getMostLikelyMatches(
 		String property, List<Pair<String, String[]>> matches, String[] portletNames) {
 
 		List<Pair<String, String>> mostLikelyMatches = new ArrayList<>();
@@ -504,8 +511,8 @@ public class PropertiesLocator {
 
 		for (Pair<String, String[]> match : matches) {
 			for (String matchProperty : match.second) {
-				if (match(property, matchProperty, match.first, maxOccurrences, portletNames)) {
-					int occurrences = getOccurrences(property, matchProperty);
+				if (_match(property, matchProperty, match.first, maxOccurrences, portletNames)) {
+					int occurrences = _getOccurrences(property, matchProperty);
 
 					if (occurrences > maxOccurrences) {
 						mostLikelyMatches.clear();
@@ -519,14 +526,14 @@ public class PropertiesLocator {
 		}
 
 		if (mostLikelyMatches.size() > 1) {
-			mostLikelyMatches = filterMostLikelyMatches(property, portletNames, mostLikelyMatches);
+			mostLikelyMatches = _filterMostLikelyMatches(property, portletNames, mostLikelyMatches);
 		}
 
 		return mostLikelyMatches;
 	}
 
-	protected static int getOccurrences(String originalProperty, String property) {
-		String originalPropertyWithoutPrefix = removeCommonPrefix(originalProperty);
+	private static int _getOccurrences(String originalProperty, String property) {
+		String originalPropertyWithoutPrefix = _removeCommonPrefix(originalProperty);
 
 		if (!property.contains(StringPool.PERIOD)) {
 			//Camel case property
@@ -547,7 +554,7 @@ public class PropertiesLocator {
 		return numOccurrences;
 	}
 
-	protected static String getPortletNameAsProperty(String[] portletNames) {
+	private static String _getPortletNameAsProperty(String[] portletNames) {
 		String portletNameAsProperty = StringPool.BLANK;
 
 		for (String portletName : portletNames) {
@@ -564,7 +571,7 @@ public class PropertiesLocator {
 	/*
 		We get portlet names from first two words in a property
 	 */
-	protected static String[] getPortletNames(String property) {
+	private static String[] _getPortletNames(String property) {
 		String[] portletNames = new String[0];
 
 		int index = 0;
@@ -589,12 +596,8 @@ public class PropertiesLocator {
 		return portletNames;
 	}
 
-	protected static Properties getProperties(String propertiesPath) throws Exception {
-		File propertiesFile = new File(propertiesPath);
-
-		try {
-			FileInputStream fileInput = new FileInputStream(propertiesFile);
-
+	private static Properties _getProperties(Path propertiesPath) throws Exception {
+		try (FileInputStream fileInput = new FileInputStream(propertiesPath.toFile())) {
 			Properties properties = new Properties();
 
 			properties.load(fileInput);
@@ -603,13 +606,13 @@ public class PropertiesLocator {
 			return properties;
 		}
 		catch (Exception e) {
-			System.out.println("Unable to read properties file " + propertiesFile.getAbsolutePath());
+			System.out.println("Unable to read properties file " + propertiesPath.toString());
 
 			throw e;
 		}
 	}
 
-	protected static void getPropertiesFromJar(String propertiesJarURL, Properties properties) throws Exception {
+	private static void _getPropertiesFromJar(String propertiesJarURL, Properties properties) throws Exception {
 		try {
 			URL url = new URL(propertiesJarURL);
 
@@ -625,7 +628,7 @@ public class PropertiesLocator {
 		}
 	}
 
-	protected static SortedSet<String> getRemovedProperties(
+	private static SortedSet<String> _getRemovedProperties(
 		Properties oldProperties, Properties newProperties, SortedSet<String> remainedProperties) {
 
 		SortedSet<String> removedProperties = new TreeSet<>();
@@ -646,7 +649,7 @@ public class PropertiesLocator {
 		return removedProperties;
 	}
 
-	protected static boolean isLiferayJar(String path) {
+	private static boolean _isLiferayJar(String path) {
 		if ((!path.endsWith(".jar")) || (!path.contains("com.liferay"))) {
 			return false;
 		}
@@ -654,7 +657,7 @@ public class PropertiesLocator {
 		return true;
 	}
 
-	protected static SortedSet<String> manageExceptions(SortedSet<String> properties) {
+	private static SortedSet<String> _manageExceptions(SortedSet<String> properties) {
 		Set<String> removedProperties = new HashSet<>();
 		SortedSet<String> informationToPrint = new TreeSet<>();
 
@@ -693,15 +696,15 @@ public class PropertiesLocator {
 		return properties;
 	}
 
-	protected static boolean match(
+	private static boolean _match(
 		String originalProperty, String newProperty, String newPropertyPath, int minOccurrences,
 		String[] portletNames) {
 
-		if (!pathContainsPortletName(newPropertyPath, portletNames)) {
+		if (!_pathContainsPortletName(newPropertyPath, portletNames)) {
 			return false;
 		}
 
-		int numOccurrences = getOccurrences(originalProperty, newProperty);
+		int numOccurrences = _getOccurrences(originalProperty, newProperty);
 
 		if ((numOccurrences == 0) || (numOccurrences < minOccurrences)) {
 			return false;
@@ -710,7 +713,7 @@ public class PropertiesLocator {
 		return true;
 	}
 
-	protected static boolean matchSuffix(String originalProperty, String property) {
+	private static boolean _matchSuffix(String originalProperty, String property) {
 		if (!property.contains(StringPool.PERIOD)) {
 			//Camel case property
 			property = CamelCaseUtil.fromCamelCase(property, StringPool.PERIOD.charAt(0));
@@ -729,9 +732,9 @@ public class PropertiesLocator {
 		}
 	}
 
-	protected static boolean pathContainsPortletName(String propertyPath, String[] portletNames) {
+	private static boolean _pathContainsPortletName(String propertyPath, String[] portletNames) {
 		for (String portletName : portletNames) {
-			portletName = getEquivalence(portletName);
+			portletName = _getEquivalence(portletName);
 
 			if (portletName != null) {
 				if (propertyPath.contains(portletName)) {
@@ -743,14 +746,14 @@ public class PropertiesLocator {
 		return false;
 	}
 
-	protected static void printProperties(Set<String> properties) {
+	private static void _printProperties(Set<String> properties) {
 		for (String property : properties) {
 			_outputFile.print("\t");
 			_outputFile.println(property);
 		}
 	}
 
-	protected static void printUnderline(String text) {
+	private static void _printUnderline(String text) {
 		for (int i = 0; i<text.length(); i++) {
 			_outputFile.print(StringPool.DASH);
 		}
@@ -758,7 +761,7 @@ public class PropertiesLocator {
 		_outputFile.println(StringPool.BLANK);
 	}
 
-	protected static String removeCommonPrefix(String property) {
+	private static String _removeCommonPrefix(String property) {
 		for (String prefix : _COMMON_PREFIXES) {
 			if (property.startsWith(prefix)) {
 				property = property.replace(prefix, StringPool.BLANK);
