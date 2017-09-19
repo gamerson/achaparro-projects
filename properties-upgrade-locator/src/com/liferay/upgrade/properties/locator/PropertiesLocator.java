@@ -26,16 +26,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
-
 import java.net.URL;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -63,14 +59,14 @@ public class PropertiesLocator {
 	public static void main(String[] args) throws Exception {
 		if (args.length != 2) {
 			System.out.println("Please, specify the following arguments: ");
-			System.out.println("URL to old portal-ext.properties");
-			System.out.println("URL to a Liferay bundle");
+			System.out.println("Path to old portal-ext.properties");
+			System.out.println("Path to a Liferay bundle");
 
 			return;
 		}
 
-		String oldPropertiesFileURL = args[0];
-		String bundleURL = args[1];
+		String oldPropertiesFilePath = args[0];
+		String bundlePath = args[1];
 
 		_outputFile = generateOutputFile();
 
@@ -81,9 +77,9 @@ public class PropertiesLocator {
 		printUnderline(title);
 
 		try {
-			Properties oldProperties = getProperties(oldPropertiesFileURL);
+			Properties oldProperties = getProperties(oldPropertiesFilePath);
 
-			Properties newProperties = getCurrentPortalProperties(bundleURL);
+			Properties newProperties = getCurrentPortalProperties(bundlePath);
 
 			SortedSet<String> remainedProperties = new TreeSet<>();
 
@@ -94,11 +90,11 @@ public class PropertiesLocator {
 
 			_outputFile.println();
 			removedProperties = checkPortletProperties(
-				removedProperties, bundleURL + "/osgi");
+				removedProperties, bundlePath + "/osgi");
 
 			_outputFile.println();
 			removedProperties = checkConfigurationProperties(
-				removedProperties, bundleURL + "/osgi");
+				removedProperties, bundlePath + "/osgi");
 
 			_outputFile.println();
 			_outputFile.println(
@@ -516,13 +512,13 @@ public class PropertiesLocator {
 		return configurationProperties;
 	}
 
-	protected static Properties getCurrentPortalProperties(String bundleURL)
+	protected static Properties getCurrentPortalProperties(String bundlePath)
 		throws Exception {
 
 		Properties properties = new Properties();
 
 		try (Stream<Path> paths = Files.find(
-				Paths.get(bundleURL), Integer.MAX_VALUE,
+				Paths.get(bundlePath), Integer.MAX_VALUE,
 				(path, attrs) -> attrs.isRegularFile() &&
 						 path.toString().endsWith(
 						_PORTAL_IMPL_RELATIVE_PATH))) {
@@ -540,7 +536,7 @@ public class PropertiesLocator {
 
 		if (properties.size() == 0) {
 			throw new Exception(
-				"File portal.properties doesn't exist in " + bundleURL);
+				"File portal.properties doesn't exist in " + bundlePath);
 		}
 
 		return properties;
@@ -663,10 +659,10 @@ public class PropertiesLocator {
 		return portletNames;
 	}
 
-	protected static Properties getProperties(String propertiesURL)
+	protected static Properties getProperties(String propertiesPath)
 		throws Exception {
 
-		File propertiesFile = new File(propertiesURL);
+		File propertiesFile = new File(propertiesPath);
 
 		try {
 			FileInputStream fileInput = new FileInputStream(propertiesFile);
