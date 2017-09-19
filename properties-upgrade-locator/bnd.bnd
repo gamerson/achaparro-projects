@@ -1,0 +1,5 @@
+JPM-Commmand: props-upgrade
+
+Main-Class: com.liferay.upgrade.properties.locator.PropertiesLocator
+
+-privatepackage: com.liferay.portal.kernel.util

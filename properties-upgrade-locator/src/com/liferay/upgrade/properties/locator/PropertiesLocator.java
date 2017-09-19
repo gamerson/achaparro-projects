@@ -169,33 +169,33 @@ public class PropertiesLocator {
 							}
 						}
 						else if (absolutePath.endsWith(".lpkg")) {
-							ZipFile zipFile = new ZipFile(absolutePath);
+							try(ZipFile zipFile = new ZipFile(absolutePath)) {
+								Enumeration<?> enu = zipFile.entries();
 
-							Enumeration<?> enu = zipFile.entries();
+									while (enu.hasMoreElements()) {
+										ZipEntry zipEntry = (ZipEntry)enu.nextElement();
 
-							while (enu.hasMoreElements()) {
-								ZipEntry zipEntry = (ZipEntry)enu.nextElement();
+										if (isLiferayJar(zipEntry.getName())) {
+											try (JarInputStream jarIs =
+											new JarInputStream(zipFile.getInputStream(zipEntry))) {
 
-								if (isLiferayJar(zipEntry.getName())) {
-									try (JarInputStream jarIs =
-									new JarInputStream(zipFile.getInputStream(zipEntry))) {
+												ZipEntry zipEntryJar = jarIs.getNextEntry();
 
-										ZipEntry zipEntryJar = jarIs.getNextEntry();
+												while (zipEntryJar != null) {
+													if (zipEntryJar.getName().endsWith("Configuration.class")) {
+														configClassesMap.put(
+															zipEntryJar.getName().replace(".class", StringPool.BLANK),
+															new ConfigurationClassData(jarIs));
+													}
 
-										while (zipEntryJar != null) {
-											if (zipEntryJar.getName().endsWith("Configuration.class")) {
-												configClassesMap.put(
-													zipEntryJar.getName().replace(".class", StringPool.BLANK),
-													new ConfigurationClassData(jarIs));
+													zipEntryJar = jarIs.getNextEntry();
+												}
 											}
-
-											zipEntryJar = jarIs.getNextEntry();
+											catch (Exception e) {
+												continue;
+											}
 										}
 									}
-									catch (Exception e) {
-										continue;
-									}
-								}
 							}
 						}
 					}
@@ -293,51 +293,51 @@ public class PropertiesLocator {
 							}
 						}
 						else if (absolutePath.endsWith(".lpkg")) {
-							ZipFile zipFile = new ZipFile(absolutePath);
+							try (ZipFile zipFile = new ZipFile(absolutePath)) {
+									Enumeration<?> enu = zipFile.entries();
 
-							Enumeration<?> enu = zipFile.entries();
+									while (enu.hasMoreElements()) {
+										ZipEntry zipEntry = (ZipEntry)enu.nextElement();
 
-							while (enu.hasMoreElements()) {
-								ZipEntry zipEntry = (ZipEntry)enu.nextElement();
+										if (isLiferayJar(zipEntry.getName())) {
+											try (JarInputStream jarIs =
+											new JarInputStream(zipFile.getInputStream(zipEntry))) {
 
-								if (isLiferayJar(zipEntry.getName())) {
-									try (JarInputStream jarIs =
-									new JarInputStream(zipFile.getInputStream(zipEntry))) {
+												ZipEntry zipEntryJar = jarIs.getNextEntry();
 
-										ZipEntry zipEntryJar = jarIs.getNextEntry();
+												while (zipEntryJar != null) {
+													if (zipEntryJar.getName().equals("portlet.properties")) {
+														portletProperties = new Properties();
 
-										while (zipEntryJar != null) {
-											if (zipEntryJar.getName().equals("portlet.properties")) {
-												portletProperties = new Properties();
+														portletProperties.load(jarIs);
 
-												portletProperties.load(jarIs);
+														Enumeration<Object> enuKeys = portletProperties.keys();
 
-												Enumeration<Object> enuKeys = portletProperties.keys();
+														String[] propertyKeys = new String[0];
 
-												String[] propertyKeys = new String[0];
+														while (enuKeys.hasMoreElements()) {
+															propertyKeys = ArrayUtil.append(
+																propertyKeys, (String)enuKeys.nextElement());
+														}
 
-												while (enuKeys.hasMoreElements()) {
-													propertyKeys = ArrayUtil.append(
-														propertyKeys, (String)enuKeys.nextElement());
+														if (propertyKeys.length != 0) {
+															portletsProperties.add(
+																new Pair<String, String[]>(
+																	absolutePath + "/" + zipEntry.getName() + "/portlet.properties",
+																	propertyKeys));
+														}
+
+														break;
+													}
+
+													zipEntryJar = jarIs.getNextEntry();
 												}
-
-												if (propertyKeys.length != 0) {
-													portletsProperties.add(
-														new Pair<String, String[]>(
-															absolutePath + "/" + zipEntry.getName() + "/portlet.properties",
-															propertyKeys));
-												}
-
-												break;
 											}
-
-											zipEntryJar = jarIs.getNextEntry();
+											catch (Exception e) {
+												continue;
+											}
 										}
 									}
-									catch (Exception e) {
-										continue;
-									}
-								}
 							}
 						}
 					}
