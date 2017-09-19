@@ -32,6 +32,10 @@ dependencies {
 	compileOnly group: "com.liferay.portal", name: "com.liferay.portal.kernel", version: "2.20.0"
 }
 
+formatSource {
+	maxLineLength = 120
+}
+
 sourceSets {
 	main {
 		java {
