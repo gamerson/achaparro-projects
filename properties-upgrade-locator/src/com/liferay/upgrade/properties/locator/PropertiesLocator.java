@@ -180,7 +180,7 @@ public class PropertiesLocator {
 						else if (absolutePath.endsWith(".lpkg")) {
 							ZipFile zipFile = new ZipFile(absolutePath);
 
-							Enumeration enu = zipFile.entries();
+							Enumeration<?> enu = zipFile.entries();
 
 							while (enu.hasMoreElements()) {
 								ZipEntry zipEntry = (ZipEntry)enu.nextElement();
@@ -302,7 +302,7 @@ public class PropertiesLocator {
 									portletProperties);
 							}
 
-							Enumeration enuKeys = portletProperties.keys();
+							Enumeration<Object> enuKeys = portletProperties.keys();
 
 							String[] propertyKeys = new String[0];
 
@@ -322,7 +322,7 @@ public class PropertiesLocator {
 						else if (absolutePath.endsWith(".lpkg")) {
 							ZipFile zipFile = new ZipFile(absolutePath);
 
-							Enumeration enu = zipFile.entries();
+							Enumeration<?> enu = zipFile.entries();
 
 							while (enu.hasMoreElements()) {
 								ZipEntry zipEntry = (ZipEntry)enu.nextElement();
@@ -344,7 +344,7 @@ public class PropertiesLocator {
 
 												portletProperties.load(jarIs);
 
-												Enumeration enuKeys =
+												Enumeration<Object> enuKeys =
 													portletProperties.keys();
 
 												String[] propertyKeys =
@@ -708,7 +708,7 @@ public class PropertiesLocator {
 
 		SortedSet<String> removedProperties = new TreeSet<>();
 
-		Enumeration enuKeys = oldProperties.keys();
+		Enumeration<Object> enuKeys = oldProperties.keys();
 
 		while (enuKeys.hasMoreElements()) {
 			String key = enuKeys.nextElement().toString();
