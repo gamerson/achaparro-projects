@@ -19,12 +19,12 @@ repositories {
 
 compileJava {
 	options.fork = true
-	
+
 	if (java_home)
-		options.forkOptions.executable = new File(java_home, "bin/javac")
+	options.forkOptions.executable = new File(java_home, "bin/javac")
 	else
-		throw new GradleException('You must set your JAVA_HOME path in gradle.properties file.')
-	
+	throw new GradleException('You must set your JAVA_HOME path in gradle.properties file.')
+
 	options.compilerArgs << "-XDignore.symbol.file"
 }
 
