@@ -37,7 +37,8 @@ compileJava {
 }
 
 dependencies {
-	compileOnly group: "com.liferay.portal", name: "com.liferay.portal.kernel", version: "2.20.0"
+	compile group: "com.beust", name: "jcommander", version: "1.72"
+	compile group: "com.liferay.portal", name: "com.liferay.portal.kernel", version: "2.20.0"
 
 	testCompile group: "junit", name: "junit", version: "4.12"
 }
@@ -73,5 +74,5 @@ task unzipPortal(dependsOn: downloadPortal, type: Copy) {
 test {
 	dependsOn unzipPortal
 
-	systemProperty 'liferay.ce.home', "${buildDir}/liferay-ce-portal-7.0-ga4"
+	systemProperty 'liferay.home', "${buildDir}/liferay-ce-portal-7.0-ga4"
 }

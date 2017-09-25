@@ -14,6 +14,9 @@
 
 package com.liferay.upgrade.properties.locator;
 
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.ParameterException;
+
 import com.liferay.portal.kernel.util.ArrayUtil;
 import com.liferay.portal.kernel.util.CamelCaseUtil;
 import com.liferay.portal.kernel.util.ListUtil;
@@ -25,29 +28,32 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintWriter;
+
 import java.net.URL;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
+
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.SortedSet;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -58,25 +64,38 @@ import java.util.zip.ZipFile;
 public class PropertiesLocator {
 
 	public static void main(String[] args) throws Exception {
-		if (args.length != 2) {
-			System.out.println("Please, specify the following arguments: ");
-			System.out.println("Path to old portal-ext.properties");
-			System.out.println("Path to a Liferay bundle");
+		PropertiesLocatorArgs propertiesLocatorArgs = new PropertiesLocatorArgs();
 
-			return;
+		JCommander jCommander = new JCommander(propertiesLocatorArgs);
+
+		try {
+			File jarFile = _getJarFile();
+
+			if (jarFile.isFile()) {
+				jCommander.setProgramName("java -jar " + jarFile.getName());
+			}
+			else {
+				jCommander.setProgramName(PropertiesLocator.class.getName());
+			}
+
+			jCommander.parse(args);
+
+			if (propertiesLocatorArgs.isHelp()) {
+				jCommander.usage();
+			}
+			else {
+				new PropertiesLocator(propertiesLocatorArgs);
+			}
 		}
+		catch (ParameterException pe) {
+			System.err.println(pe.getMessage());
 
-		Path oldPropertiesFilePath = Paths.get(args[0]);
-		Path bundlePath = Paths.get(args[1]);
-
-		assert oldPropertiesFilePath.toFile().exists();
-		assert bundlePath.toFile().exists();
-
-		new PropertiesLocator(oldPropertiesFilePath, bundlePath);
+			jCommander.usage();
+		}
 	}
 
-	public PropertiesLocator(Path oldPropertiesFilePath, Path bundlePath) throws Exception {
-		_outputFile = _generateOutputFile();
+	public PropertiesLocator(PropertiesLocatorArgs propertiesLocatorArgs) throws Exception {
+		_outputFile = _generateOutputFile(propertiesLocatorArgs);
 
 		String title = "Checking the location for old properties in the new version";
 
@@ -84,74 +103,64 @@ public class PropertiesLocator {
 		_printUnderline(title);
 
 		try {
-			Properties oldProperties = _getProperties(oldPropertiesFilePath);
+			File propertiesFile = propertiesLocatorArgs.getPropertiesFile();
+
+			Properties oldProperties = _getProperties(propertiesFile.toPath());
+
+			File bundleDir = propertiesLocatorArgs.getBundleDir();
+
+			Path bundlePath = bundleDir.toPath();
 
 			Properties newProperties = _getCurrentPortalProperties(bundlePath);
 
-			SortedSet<String> remainedProperties = new TreeSet<>();
+			SortedSet<String> stilExistsProperties = new TreeSet<>();
 
-			SortedSet<String> removedProperties = _getRemovedProperties(
-				oldProperties, newProperties, remainedProperties);
+			SortedSet<String> missingProperties = _getRemovedProperties(
+				oldProperties, newProperties, stilExistsProperties);
 
-			List<PropertyProblem> problems = new ArrayList<>();
+			Stream<String> stream = missingProperties.stream();
 
-			removedProperties = _manageExceptions(removedProperties, problems);
+			SortedSet<PropertyProblem> problems = stream.map(
+				PropertyProblem::new
+			).collect(
+				Collectors.toCollection(TreeSet::new)
+			);
+
+			problems = _manageExceptions(problems);
 
 			_outputFile.println();
 
 			Path osgiPath = bundlePath.resolve("osgi");
 
-            removedProperties = _checkPortletProperties(removedProperties, problems, osgiPath);
+			problems = _checkPortletProperties(problems, osgiPath);
 
 			_outputFile.println();
-			removedProperties = _checkConfigurationProperties(removedProperties, bundlePath + "/osgi");
+
+			problems = _checkConfigurationProperties(problems, bundlePath + "/osgi");
 
 			_outputFile.println();
 			_outputFile.println(
 				"We haven't found a new property for the following old properties (check if you still need them or check the documentation to find a replacement):");
-			_printProperties(removedProperties);
+
+			missingProperties =
+				problems.stream().filter(problem -> problem.getType() == PropertyProblemType.MISSING).map(problem -> problem.getPropertyName()).collect(Collectors.toCollection(TreeSet::new));
+			_printProperties(missingProperties);
 
 			_outputFile.println();
 			_outputFile.println("The following properties still exist in the new portal.properties:");
-			_printProperties(remainedProperties);
+			_printProperties(stilExistsProperties);
 
 			System.out.println("Done!");
+
+			_problems = problems;
 		}
 		finally {
 			_outputFile.close();
 		}
 	}
 
-	private static enum PropertyProblemType {
-	    MOVED,
-	    REMOVED
-	}
-	private static class PropertyProblem {
-
-	    private final String _propertyName;
-        private final PropertyProblemType _type;
-        private final String _message;
-        private final List<Pair<String, String>> _replacements;
-
-        public PropertyProblem(String propertyName, PropertyProblemType type, String message, List<Pair<String, String>> replacements) {
-	        _propertyName = propertyName;
-	        _type = type;
-	        _message = message;
-	        _replacements = replacements;
-	    }
-
-        @Override
-        public String toString() {
-            return _propertyName + "has been " + _type.toString().toLowerCase() + ".  " + _message;
-        }
-
-		public String getPropertyName() {
-			return _propertyName;
-		}
-
-		public List<Pair<String, String>> getReplacements() {
-			return _replacements;
-		}
+	public SortedSet<PropertyProblem> getProblems() {
+		return _problems;
 	}
 
 	private static String[] _addConfigurationPropertiesByHeritance(
@@ -173,7 +182,8 @@ public class PropertiesLocator {
 		return configFields;
 	}
 
-	private static SortedSet<String> _checkConfigurationProperties(SortedSet<String> properties, String rootPath)
+	private static SortedSet<PropertyProblem> _checkConfigurationProperties(
+			SortedSet<PropertyProblem> problems, String rootPath)
 		throws IOException {
 
 		Map<String, ConfigurationClassData> configClassesMap = new HashMap<>();
@@ -251,46 +261,67 @@ public class PropertiesLocator {
 
 		List<Pair<String, String[]>> configurationProperties = _getConfigurationProperties(configClassesMap);
 
-		List<PropertyProblem> foundProblems = new ArrayList<>();
+		SortedSet<PropertyProblem> updatedProblems = new TreeSet<>();
 
-		for (String property : properties) {
-			List<Pair<String, String>> mostLikelyMatches = _getMostLikelyMatches(
-				property, configurationProperties, _getPortletNames(property));
+		problems.stream().filter(
+			problem -> problem.getType() == PropertyProblemType.MISSING
+		).forEach(
+			problem -> {
+				String property = problem.getPropertyName();
 
-			if (mostLikelyMatches.size() > 0) {
-				foundProblems.add(new PropertyProblem(property, PropertyProblemType.MOVED, "This property has been modularized", mostLikelyMatches));
+				List<Pair<String, String>> mostLikelyMatches = _getMostLikelyMatches(
+					property, configurationProperties, _getPortletNames(property));
+
+				if (mostLikelyMatches.size() > 0) {
+					updatedProblems.add(
+						new PropertyProblem(
+							property, PropertyProblemType.OSGI, "This property has been modularized",
+							mostLikelyMatches));
+				}
+				else {
+					updatedProblems.add(problem);
+				}
 			}
+		);
+
+		boolean foundOsgiProblems = false;
+
+		if (updatedProblems.stream().filter(problem -> problem.getType() == PropertyProblemType.OSGI).count() > 0) {
+			foundOsgiProblems = true;
 		}
 
-		if (foundProblems.size() > 0) {
+		if (foundOsgiProblems) {
 			_outputFile.println("Properties moved to OSGI configuration:");
 
-			for (PropertyProblem problem : foundProblems) {
-				String foundProperty = problem.getPropertyName();
+			updatedProblems.stream().filter(
+				problem -> problem.getType() == PropertyProblemType.OSGI
+			).peek(
+				problem -> {
+					String property = problem.getPropertyName();
 
-				_outputFile.print("\t");
-				_outputFile.println(foundProperty + " can match with the following OSGI properties:");
-
-				List<Pair<String, String>> matches = problem.getReplacements();
-
-				for (Pair<String, String> match : matches) {
-					String path = match.first;
+					_outputFile.print("\t");
+					_outputFile.println(property + " can match with the following OSGI properties:");
+				}
+			).flatMap(
+				problem -> problem.getReplacements().stream()
+			).forEach(
+				replacement -> {
+					String path = replacement.first;
 
 					String configFileName = StringUtil.replace(
 						path, StringPool.FORWARD_SLASH.charAt(0), StringPool.PERIOD.charAt(0));
 
 					_outputFile.print("\t\t");
-					_outputFile.println(match.second + " from " + configFileName);
+					_outputFile.println(replacement.second + " from " + configFileName);
 				}
-
-				properties.remove(foundProperty);
-			}
+			);
 		}
 
-		return properties;
+		return updatedProblems;
 	}
 
-	private static SortedSet<String> _checkPortletProperties(SortedSet<String> properties, List<PropertyProblem> problems, Path searchPathRoot)
+	private static SortedSet<PropertyProblem> _checkPortletProperties(
+			SortedSet<PropertyProblem> problems, Path searchPathRoot)
 		throws Exception {
 
 		List<Pair<String, String[]>> portletsProperties = new ArrayList<>();
@@ -330,8 +361,7 @@ public class PropertiesLocator {
 
 					if (propertyKeys.length != 0) {
 						portletsProperties.add(
-							new Pair<String, String[]>(
-								jarAbsolutePath + "/portlet.properties", propertyKeys));
+							new Pair<String, String[]>(jarAbsolutePath + "/portlet.properties", propertyKeys));
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -400,40 +430,60 @@ public class PropertiesLocator {
 			}
 		);
 
-		SortedMap<String, List<Pair<String, String>>> foundProperties = new TreeMap<>();
+		Stream<PropertyProblem> stream = problems.stream();
 
-		for (String property : properties) {
-			List<Pair<String, String>> mostLikelyMatches = _getMostLikelyMatches(
-				property, portletsProperties, _getPortletNames(property));
+		SortedSet<PropertyProblem> updatedProblems = new TreeSet<>();
 
-			if (mostLikelyMatches.size() > 0) {
-				foundProperties.put(property, mostLikelyMatches);
-			}
-		}
+		stream.forEach(
+			problem -> {
+				String property = problem.getPropertyName();
 
-		if (foundProperties.size() > 0) {
-			_outputFile.println("Some properties have been moved to a module portlet.properties: ");
+				List<Pair<String, String>> mostLikelyMatches = _getMostLikelyMatches(
+					property, portletsProperties, _getPortletNames(property));
 
-			for (Map.Entry<String, List<Pair<String, String>>> entry : foundProperties.entrySet()) {
-				String foundProperty = entry.getKey();
+				if (mostLikelyMatches.size() > 0) {
+					PropertyProblem updatedProblem = new PropertyProblem(
+						property, PropertyProblemType.MODULARIZED, null, mostLikelyMatches);
 
-				problems.add(new PropertyProblem(foundProperty, PropertyProblemType.MOVED, null, entry.getValue()));
-
-				_outputFile.print("\t");
-				_outputFile.println(foundProperty + " can match with the following portlet properties:");
-
-				List<Pair<String, String>> matches = entry.getValue();
-
-				for (Pair<String, String> match : matches) {
-					_outputFile.print("\t\t");
-					_outputFile.println(match.second + " from " + match.first);
+					updatedProblems.add(updatedProblem);
 				}
+				else {
+					updatedProblems.add(problem);
+				}
+			});
 
-				properties.remove(foundProperty);
-			}
+		Predicate<? super PropertyProblem> propertyMoved =
+			problem -> problem.getType() == PropertyProblemType.MODULARIZED;
+
+		boolean somePropertiesMoved = false;
+
+		if (updatedProblems.stream().filter(propertyMoved).count() > 0) {
+			somePropertiesMoved = true;
 		}
 
-		return properties;
+		if (somePropertiesMoved) {
+			_outputFile.println("Some properties have been moved to a module portlet.properties:");
+
+			updatedProblems.stream().filter(propertyMoved).filter(
+					problem -> problem.getReplacements() != null
+			).peek(
+				problem -> {
+					String foundProperty = problem.getPropertyName();
+
+					_outputFile.print("\t");
+					_outputFile.println(foundProperty + " can match with the following portlet properties:");
+				}
+			).flatMap(
+				problem -> problem.getReplacements().stream()
+			).forEach(
+				replacement -> {
+					_outputFile.print("\t\t");
+					_outputFile.println(replacement.second + " from " + replacement.first);
+				}
+			);
+		}
+
+		return updatedProblems;
 	}
 
 	private static List<Pair<String, String>> _filterMostLikelyMatches(
@@ -477,18 +527,24 @@ public class PropertiesLocator {
 		}
 	}
 
-	private static PrintWriter _generateOutputFile() throws FileNotFoundException {
-		try {
-			LocalDateTime date = LocalDateTime.now();
-			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss");
-			String now = date.format(formatter);
+	private static PrintWriter _generateOutputFile(PropertiesLocatorArgs propertiesLocatorArgs)
+		throws FileNotFoundException {
 
-			return new PrintWriter("checkProperties" + now + ".out");
+		File outputFile = propertiesLocatorArgs.getOutputFile();
+
+		if (outputFile != null) {
+			return new PrintWriter(outputFile);
 		}
-		catch (FileNotFoundException fnfe) {
-			System.out.println("Unable to generate ouput file");
+		else if (propertiesLocatorArgs.isQuiet()) {
+			return new PrintWriter(new OutputStream() {
+				@Override
+				public void write(int b) {
+				}
 
-			throw fnfe;
+			});
+		}
+		else {
+			return new PrintWriter(System.out);
 		}
 	}
 
@@ -544,6 +600,16 @@ public class PropertiesLocator {
 		}
 
 		return portletName;
+	}
+
+	private static File _getJarFile() throws Exception {
+		ProtectionDomain protectionDomain = PropertiesLocator.class.getProtectionDomain();
+
+		CodeSource codeSource = protectionDomain.getCodeSource();
+
+		URL url = codeSource.getLocation();
+
+		return new File(url.toURI());
 	}
 
 	private static List<Pair<String, String>> _getMostLikelyMatches(
@@ -702,48 +768,60 @@ public class PropertiesLocator {
 		return true;
 	}
 
-	private static SortedSet<String> _manageExceptions(SortedSet<String> properties, List<PropertyProblem> problems) {
-		Set<String> removedProperties = new HashSet<>();
+	private static SortedSet<PropertyProblem> _manageExceptions(SortedSet<PropertyProblem> problems) {
 		SortedSet<PropertyProblem> informationToPrint = new TreeSet<>();
 
-		for (String property : properties) {
+		SortedSet<PropertyProblem> updatedProblems = new TreeSet<>();
+
+		for (PropertyProblem problem : problems) {
+			String property = problem.getPropertyName();
+
 			if (property.endsWith("display.templates.config") && !property.equals("blogs.display.templates.config") &&
 				!property.equals("dl.display.templates.config")) {
 
-				removedProperties.add(property);
+				PropertyProblem updatedProblem = new PropertyProblem(
+					property, PropertyProblemType.REMOVED, "Overwrite the method in the ADT handler. See LPS-67466",
+					null);
 
-				PropertyProblem problem = new PropertyProblem( property, PropertyProblemType.REMOVED, "Overwrite the method in the ADT handler. See LPS-67466", null );
+				informationToPrint.add(updatedProblem);
 
-				informationToPrint.add(problem);
+				updatedProblems.add(updatedProblem);
 			}
+			else if (property.endsWith("breadcrumb.display.style.default")) {
+				PropertyProblem updatedProblem = new PropertyProblem(
+				property, PropertyProblemType.MODULARIZED,
+				" ddmTemplateKeyDefault in com.liferay.site.navigation.breadcrumb.web.configuration.SiteNavigationBreadcrumbWebTemplateConfiguration. More information at Breaking Changes for Liferay 7: https://dev.liferay.com/develop/reference/-/knowledge_base/7-0/breaking-changes#replaced-the-breadcrumb-portlets-display-styles-with-adts",
+				null);
 
-			if (property.endsWith("breadcrumb.display.style.default")) {
-			    PropertyProblem problem = new PropertyProblem( property, PropertyProblemType.MOVED, " ddmTemplateKeyDefault in com.liferay.site.navigation.breadcrumb.web.configuration.SiteNavigationBreadcrumbWebTemplateConfiguration. More information at Breaking Changes for Liferay 7: https://dev.liferay.com/develop/reference/-/knowledge_base/7-0/breaking-changes#replaced-the-breadcrumb-portlets-display-styles-with-adts", null);
+				informationToPrint.add(updatedProblem);
 
-				informationToPrint.add(problem);
+				updatedProblems.add(problem);
 			}
+			else if (property.endsWith("breadcrumb.display.style.options")) {
+				PropertyProblem updatedProblem = new PropertyProblem(
+				property, PropertyProblemType.REMOVED,
+				"Any DDM template as ddmTemplate_BREADCRUMB-HORIZONTAL-FTL can be used. More information at Breaking Changes for Liferay 7: https://dev.liferay.com/develop/reference/-/knowledge_base/7-0/breaking-changes#replaced-the-breadcrumb-portlets-display-styles-with-adts",
+				null);
 
-			if (property.endsWith("breadcrumb.display.style.options")) {
-			    removedProperties.add(property);
+				informationToPrint.add(updatedProblem);
 
-			    PropertyProblem problem = new PropertyProblem( property, PropertyProblemType.REMOVED, "Any DDM template as ddmTemplate_BREADCRUMB-HORIZONTAL-FTL can be used. More information at Breaking Changes for Liferay 7: https://dev.liferay.com/develop/reference/-/knowledge_base/7-0/breaking-changes#replaced-the-breadcrumb-portlets-display-styles-with-adts", null);
-
-			    informationToPrint.add(problem);
+				updatedProblems.add(problem);
+			}
+			else {
+				updatedProblems.add(problem);
 			}
 		}
 
-		if (removedProperties.size() > 0) {
+		if (informationToPrint.size() > 0) {
 			_outputFile.println("Following portal properties present an exception:");
 
 			for (PropertyProblem information : informationToPrint) {
 				_outputFile.print("\t");
 				_outputFile.println(information);
 			}
-
-			properties.removeAll(removedProperties);
 		}
 
-		return properties;
+		return updatedProblems;
 	}
 
 	private static boolean _match(
@@ -836,6 +914,8 @@ public class PropertiesLocator {
 
 	private static PrintWriter _outputFile;
 	private static final Map<String, String> _portletNameEquivalences;
+
+	private SortedSet<PropertyProblem> _problems;
 
 	static
 	{

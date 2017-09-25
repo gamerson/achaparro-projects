@@ -14,9 +14,14 @@
 
 package com.liferay.upgrade.properties.locator;
 
+import java.io.File;
+import java.util.SortedSet;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * @author Gregory Amerson
@@ -29,12 +34,42 @@ public class PropertiesLocatorTest {
 	}
 
 	@Test
-	public void testPropertiesLocator() throws Exception {
-		String[] args = {"resources/6.2-fix-pack-131/portal.properties", _liferayHome};
+	public void testPropertiesLocatorAPI() throws Exception {
+		PropertiesLocatorArgs args = new PropertiesLocatorArgs();
 
-		PropertiesLocator.main(args);
+		args.setBundleDir(_liferayHome);
+		args.setPropertiesFile(new File("resources/6.2-fix-pack-131/portal.properties"));
+		args.setQuiet(true);
+
+		PropertiesLocator propertiesLocator = new PropertiesLocator(args);
+
+		SortedSet<PropertyProblem> problems = propertiesLocator.getProblems();
+
+		Assert.assertNotNull(problems);
+
+		Assert.assertEquals(627, problems.size());
 	}
 
-	private static final String _liferayHome = System.getProperty("liferay.home");
+	@Test
+	public void testPropertiesLocatorOutputFile() throws Exception {
+		File outputFile = tempFolder.newFile("out");
+
+		String[] args = {
+			"-p", "resources/6.2-fix-pack-131/portal.properties", "-d", _liferayHome.getAbsolutePath(), "-o",
+			outputFile.getAbsolutePath()
+		};
+
+		PropertiesLocator.main(args);
+
+		String expectedOutput = FileUtil.read(new File("test-resources/checkProperties.out"));
+		String testOutput = FileUtil.read(outputFile);
+
+		Assert.assertEquals(expectedOutput, testOutput);
+	}
+
+	@Rule
+	public TemporaryFolder tempFolder = new TemporaryFolder();
+
+	private static final File _liferayHome = new File(System.getProperty("liferay.home"));
 
 }
