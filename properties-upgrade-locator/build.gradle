@@ -76,3 +76,5 @@ test {
 
 	systemProperty 'liferay.home', "${buildDir}/liferay-ce-portal-7.0-ga4"
 }
+
+version = "1.0.0"

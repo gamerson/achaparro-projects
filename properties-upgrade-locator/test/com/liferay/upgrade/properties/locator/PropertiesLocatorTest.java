@@ -15,6 +15,7 @@
 package com.liferay.upgrade.properties.locator;
 
 import java.io.File;
+
 import java.util.SortedSet;
 
 import org.junit.Assert;

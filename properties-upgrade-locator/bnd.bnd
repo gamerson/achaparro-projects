@@ -2,4 +2,9 @@ JPM-Commmand: props-upgrade
 
 Main-Class: com.liferay.upgrade.properties.locator.PropertiesLocator
 
--privatepackage: com.liferay.portal.kernel.util
+-privatepackage:\
+	com.beust.jcommander.*,\
+	com.liferay.portal.kernel.io.unsync,\
+	com.liferay.portal.kernel.log,\
+	com.liferay.portal.kernel.memory,\
+	com.liferay.portal.kernel.util

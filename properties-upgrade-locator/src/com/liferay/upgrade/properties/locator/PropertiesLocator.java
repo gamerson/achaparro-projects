@@ -130,13 +130,11 @@ public class PropertiesLocator {
 
 			_outputFile.println();
 
-			Path osgiPath = bundlePath.resolve("osgi");
-
-			problems = _checkPortletProperties(problems, osgiPath);
+			problems = _checkPortletProperties(problems, bundlePath);
 
 			_outputFile.println();
 
-			problems = _checkConfigurationProperties(problems, bundlePath + "/osgi");
+			problems = _checkConfigurationProperties(problems, bundlePath);
 
 			_outputFile.println();
 			_outputFile.println(
@@ -149,8 +147,6 @@ public class PropertiesLocator {
 			_outputFile.println();
 			_outputFile.println("The following properties still exist in the new portal.properties:");
 			_printProperties(stilExistsProperties);
-
-			System.out.println("Done!");
 
 			_problems = problems;
 		}
@@ -183,12 +179,12 @@ public class PropertiesLocator {
 	}
 
 	private static SortedSet<PropertyProblem> _checkConfigurationProperties(
-			SortedSet<PropertyProblem> problems, String rootPath)
+			SortedSet<PropertyProblem> problems, Path searchPathRoot)
 		throws IOException {
 
 		Map<String, ConfigurationClassData> configClassesMap = new HashMap<>();
 
-		Files.walk(Paths.get(rootPath))
+		Files.walk(searchPathRoot)
 				.filter(path ->
 				((path.toFile().getAbsolutePath().endsWith(".jar")) ||
 				 (path.toFile().getAbsolutePath().endsWith(".lpkg"))) &&
@@ -321,7 +317,7 @@ public class PropertiesLocator {
 	}
 
 	private static SortedSet<PropertyProblem> _checkPortletProperties(
-			SortedSet<PropertyProblem> problems, Path searchPathRoot)
+			SortedSet<PropertyProblem> problems, Path bundlePath)
 		throws Exception {
 
 		List<Pair<String, String[]>> portletsProperties = new ArrayList<>();
@@ -330,6 +326,8 @@ public class PropertiesLocator {
 
 		Predicate<Path> ignoreStateFilter = path -> !path.toString().contains("/osgi/state/");
 		Predicate<Path> lpkgFilter = path -> path.toString().endsWith(".lpkg");
+
+		Path searchPathRoot = bundlePath.resolve("osgi");
 
 		Files.walk(
 			searchPathRoot
@@ -477,8 +475,12 @@ public class PropertiesLocator {
 				problem -> problem.getReplacements().stream()
 			).forEach(
 				replacement -> {
+					Path modulePath = Paths.get(replacement.first);
+
+					Path relativePath = bundlePath.relativize(modulePath);
+
 					_outputFile.print("\t\t");
-					_outputFile.println(replacement.second + " from " + replacement.first);
+					_outputFile.println(replacement.second + " from " + relativePath);
 				}
 			);
 		}
