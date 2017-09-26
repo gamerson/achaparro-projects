@@ -1,4 +1,4 @@
-JPM-Commmand: props-upgrade
+JPM-Command: props-upgrade
 
 Main-Class: com.liferay.upgrade.properties.locator.PropertiesLocator
 

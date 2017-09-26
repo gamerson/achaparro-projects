@@ -1,3 +1,17 @@
+/**
+ * Copyright (c) 2000-present Liferay, Inc. All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU Lesser General Public License as published by the Free
+ * Software Foundation; either version 2.1 of the License, or (at your option)
+ * any later version.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+
 package com.liferay.upgrade.properties.locator;
 
 import com.liferay.portal.kernel.util.ArrayUtil;
@@ -5,11 +19,16 @@ import com.liferay.portal.kernel.util.ArrayUtil;
 import java.io.IOException;
 import java.io.InputStream;
 
-import jdk.internal.org.objectweb.asm.*;
+import jdk.internal.org.objectweb.asm.AnnotationVisitor;
+import jdk.internal.org.objectweb.asm.ClassReader;
+import jdk.internal.org.objectweb.asm.ClassVisitor;
+import jdk.internal.org.objectweb.asm.MethodVisitor;
+import jdk.internal.org.objectweb.asm.Opcodes;
 
 /**
- * Created by achaparro on 18/02/17.
+ * @author Alberto Chaparro
  */
+@SuppressWarnings("restriction")
 public class ConfigurationClassData {
 
 	public ConfigurationClassData(InputStream is) throws IOException {
@@ -26,11 +45,11 @@ public class ConfigurationClassData {
 		return _superClass;
 	}
 
-	private void addConfigField(String configField) {
+	private void _addConfigField(String configField) {
 		_configFields = ArrayUtil.append(_configFields, configField);
 	}
 
-	private void setSuperClass(String superClass) {
+	private void _setSuperClass(String superClass) {
 		_superClass = superClass;
 	}
 
@@ -47,14 +66,14 @@ public class ConfigurationClassData {
 		public void visit(
 			int version, int access, String name, String signature, String superName, String[] interfaces) {
 
-			if ((superName.equals("java/lang/Object")) && (interfaces.length == 1)) {
+			if (superName.equals("java/lang/Object") && (interfaces.length == 1)) {
 
 				// When it's an interface and extends from another interface
 
-				setSuperClass(interfaces[0]);
+				_setSuperClass(interfaces[0]);
 			}
 			else {
-				setSuperClass(superName);
+				_setSuperClass(superName);
 			}
 
 			super.visit(version, access, name, signature, superName, interfaces);
@@ -78,7 +97,7 @@ public class ConfigurationClassData {
 		@Override
 		public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
 			if (desc.equals("LaQute/bnd/annotation/metatype/Meta$AD;")) {
-				addConfigField(_fieldName);
+				_addConfigField(_fieldName);
 			}
 
 			return null;

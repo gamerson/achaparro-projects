@@ -14,8 +14,6 @@
 
 package com.liferay.upgrade.properties.locator;
 
-import com.liferay.upgrade.properties.locator.PropertiesLocator.Pair;
-
 import java.util.List;
 
 /**
@@ -24,7 +22,8 @@ import java.util.List;
 public class PropertyProblem implements Comparable<PropertyProblem> {
 
 	public PropertyProblem(String propertyName) {
-		_propertyName = propertyName; _type = PropertyProblemType.MISSING;
+		_propertyName = propertyName;
+		_type = PropertyProblemType.MISSING;
 	}
 
 	public PropertyProblem(
